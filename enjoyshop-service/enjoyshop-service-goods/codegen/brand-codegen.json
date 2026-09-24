@@ -1,0 +1,29 @@
+{
+  "configVersion": 1,
+  "projectType": "light",
+  "basePackage": "top.egon.enjoyshop.goods",
+  "domain": "goods",
+  "outputRoot": "enjoyshop-service/enjoyshop-service-goods",
+  "input": {
+    "mode": "manifest",
+    "resourceRoot": "enjoyshop-service/enjoyshop-service-goods/src/main/resources",
+    "manifest": "db/egon-mp/repository-manifest.json"
+  },
+  "logicalTables": ["brand"],
+  "artifacts": ["po", "dao", "mapper-xml", "repo", "domain-model", "domain-query", "command", "query",
+    "result", "converter", "domain-service", "domain-impl", "manage", "manage-impl", "controller"],
+  "existingTypeMappings": {},
+  "fieldPolicies": {
+    "create": ["name", "image", "letter", "seq"],
+    "update": ["name", "image", "letter", "seq"],
+    "result": ["name", "image", "letter", "seq"],
+    "filter": ["name", "letter"],
+    "sort": ["id"]
+  },
+  "apiContract": {
+    "existingErrorMapper": "top.egon.enjoyshop.goods.common.error.GoodsErrorMapper",
+    "contextSymbol": "top.egon.enjoyshop.goods.adapter.filter.RequestContext",
+    "basePath": "/api/v1/brands"
+  },
+  "events": { "enabled": false }
+}

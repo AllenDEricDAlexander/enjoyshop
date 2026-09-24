@@ -1,2 +1,6 @@
 .idea/
 .agents/
+# .egon/ = 代码生成器所有权状态（plans/state/journal/lock），保留在磁盘、永不提交
+.egon/
+# 系统噪声
+.DS_Store
