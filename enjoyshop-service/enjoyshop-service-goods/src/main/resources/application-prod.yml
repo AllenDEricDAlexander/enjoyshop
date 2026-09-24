@@ -131,6 +131,11 @@ egon:
             class_course_schedules:
               type: STANDARD_TENANT_ID
               sharding-column: tenant_id
+            brand:
+              # DEC-114 option A: brand is single-tenant master data, so no sharding column;
+              # tenant_id stays an ordinary column that the MP-SDJ tenant interceptor filters on.
+              type: SINGLE
+              data-source: master_data
       id:
         enabled: true
         machine-id: ${EGON_ID_MACHINE_ID}
@@ -157,14 +162,14 @@ egon:
           private-key-path: ${RPC_PRIVATE_KEY_PATH:}
           trust-certificate-collection-path: ${RPC_TRUST_CERTIFICATE_COLLECTION_PATH:}
       tianshu:
-        enabled: ${TIANSHU_ENABLED:true}
+        enabled: ${TIANSHU_ENABLED:false}
         biz-code: ${TIANSHU_BIZ_CODE:student-management}
         app-code: ${TIANSHU_APP_CODE:${spring.application.name}}
         env: ${APP_ENV:prod}
         namespace: ${TIANSHU_NAMESPACE:default}
         registration-resource-uri: ${TIANSHU_REGISTRATION_RESOURCE_URI:}
         redis:
-          enabled: ${TIANSHU_REDIS_ENABLED:true}
+          enabled: ${TIANSHU_REDIS_ENABLED:false}
           host: ${TIANSHU_REDIS_HOST:localhost}
           port: ${TIANSHU_REDIS_PORT:6379}
           password: ${TIANSHU_REDIS_PASSWORD:}
@@ -172,9 +177,9 @@ egon:
         consistency:
           fail-fast: true
         registry:
-          enabled: ${TIANSHU_REGISTRY_ENABLED:true}
+          enabled: ${TIANSHU_REGISTRY_ENABLED:false}
           http:
-            enabled: ${TIANSHU_HTTP_REGISTRATION_ENABLED:true}
+            enabled: ${TIANSHU_HTTP_REGISTRATION_ENABLED:false}
             env: ${APP_ENV:prod}
             namespace: ${TIANSHU_NAMESPACE:default}
             instance-id: ${INSTANCE_ID:${HOSTNAME:local}}
@@ -206,7 +211,7 @@ egon:
     platform:
       tianquan:
         shoubing:
-          enabled: ${TIANQUAN_SHOUBING_ENABLED:true}
+          enabled: ${TIANQUAN_SHOUBING_ENABLED:false}
           register-filter: false
           issuer: ${TIANQUAN_SHOUBING_ISSUER:}
           jwk-set-uri: ${TIANQUAN_SHOUBING_JWK_SET_URI:}

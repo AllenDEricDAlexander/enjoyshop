@@ -54,3 +54,8 @@ egon:
             class_course_schedules:
               type: STANDARD_TENANT_ID
               sharding-column: tenant_id
+            brand:
+              # DEC-114 option A: brand is single-tenant master data, so no sharding column;
+              # tenant_id stays an ordinary column that the MP-SDJ tenant interceptor filters on.
+              type: SINGLE
+              data-source: master_data
