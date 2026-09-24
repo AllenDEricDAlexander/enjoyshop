@@ -2592,3 +2592,7 @@ PASS — Ready for user review
 3. **样例既有不对称登记为 §11 `RISK-P6`**：110 个 base-only + 4 个 test-only 键差属 archetype 样例基线债务，本迭代不批量搬键（那会构成 Step 10 未授权的 ~330 行超范围改动，并侵入 `logging.file.path` 这类本应逐环境取不同值的键），收口须另立 Spec。审计口径：`REQ-004`/`TEST-013` 判 `Partial`——治理键族已满足，全库键奇偶为已登记的后续项。
 
 `Rule 7` 原文（"多环境配置文件必须保持配置一致，但值不一定一致"）与 `references/user-mandated-java-rules.md` Rule 7 执行契约（"require identical structure/**core** key sets"）在该口径下逐字满足：变更所辖的每个键在 base 与全部环境文件中同现，仅值可不同。
+
+### 13.2 `PLAN-CLAR-027` — Step 8 File 2 伪代码调用了 Spring 不存在的访问器
+
+Step 8 File 2 的伪代码用 `error.getConstraint() == null ? null : error.getConstraint().getSimpleName()` 取字段违例的约束名。实测该访问器在工程所用版本不存在：`javap org.springframework.validation.FieldError`（`spring-context-6.2.19.jar`）的公开方法只有 `getField()`、`getRejectedValue()`、`isBindingFailure()`、`equals`/`hashCode`/`toString`（父类 `ObjectError` 另提供 `getDefaultMessage()`、`getCode()`、`getArguments()`、`getCodes()`），无 `getConstraint()`（约束注解类型只暴露在 `ConstraintViolation#getConstraintDescriptor()` 上），照抄伪代码无法编译。实现改为 `ObjectError#getCodes()` 的末位元素（Bean Validation 失败时即注解简单名 `NotBlank`/`Pattern`/…；绑定失败时为 `typeMismatch`），`ConstraintViolationException` 分支仍按伪代码用 `getConstraintDescriptor().getAnnotation().annotationType().getSimpleName()`。保证未削弱：`validation_failure_carries_field_errors` 逐字段断言 `data.fieldErrors[*].constraint` 落在允许集合内。同文件的 `ResultRecord.result(ErrorStatus, boolean, T)` 重载经 `javap` 核实存在（`ResultRecord` 为 `success/code/status/message/data/traceId/timestamp` 七分量 record），故 610101 三要素由枚举派生而非重复字面量。未新增未声明路径。
