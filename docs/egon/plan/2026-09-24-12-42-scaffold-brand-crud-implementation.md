@@ -2505,6 +2505,7 @@ class BrandOpenApiContractTest {
 | `RISK-P3` | 定制过的生成文件（`BrandResult`、`BrandResultConverter`、`BrandDAO`、`BrandDAO.xml`、`BrandRepository`、`BrandManage`、`BrandManageImpl`、`BrandDomainService`、`BrandDomainServiceImpl`、`BrandController`、`BrandDomainQuery` 无改、`BrandPersistenceConverter` 无改）在未来再生成时报 `CONFLICT`，须人工合并 | Step 4/5/6/9 | backend-code-generation 冲突模型；Spec §8.3 已声明 | mario | 已登记（不阻塞）— 运维模型：CONFLICT 即停止，按文件比对合并；不再扩大定制面 |
 | `RISK-P4` | 全量模式 500 上限使超 500 行的品牌目录静默截断（Spec `RISK-004` 承接） | Step 9 `listBrands`；`TEST-007` | `PageQuery.MAX_PAGE_SIZE=500` | mario | 已登记（不阻塞）— `page.total/hasNext` 已暴露；如需无界分页另立契约决策 |
 | `RISK-P5` | 雪花 id JSON 整数在浏览器 53 位精度后失真（Spec `RISK-005` 承接） | Step 7 `BrandVO.id` | `RISK-005` 原文 | mario | 已登记（不阻塞）— 前端按字符串透传比较；全局字符串序列化需后续 Spec |
+| `RISK-P6` | archetype 样例基线的四份 profile 键天然不对称：110 个键仅存在于 base（`app.logging.async.*`、`logging.group.*`、`logging.file.path`、`app.integrations.*` 等），4 个键仅存在于 `-test`（`management.health.rabbit.enabled`、`management.health.redis.enabled`），故 Step 10 File 6 原伪代码的"全部键集合相等"不可成立 | Step 10 `ProfileKeyParityTest`；`REQ-004`/`TEST-013` 验收 | 纯静态扁平化四份 YAML 的键路径计数：base 308 / dev 198 / test 202 / prod 202（见 §13.1） | mario | 已登记（不阻塞，用户裁定选 A）— 本迭代只对**本变更所辖键族**做严格奇偶（§13.1 `PLAN-CLAR-026` 三条判据），不批量搬键（那将是约 330 行未授权改动并侵入本应逐环境取值的键）；全库键奇偶收口另立 Spec。审计口径：`REQ-004`/`TEST-013` 判 `Partial` |
 
 无其他未决决策：Spec §5.4 十四项已全部由用户选定；`DEC-107`/`DEC-111` 的"默认关闭"口径已由 Step 10 落实。
 
@@ -2579,3 +2580,15 @@ PASS — Ready for user review
 | `PLAN-CLAR-025` | Step 11 完成判据"`egon-codegen.sh check` 退出码 0"与 §11 `RISK-P3` 自相矛盾：实测 `check` 对 22 个受管产物逐个用 `sha256(磁盘字节)` 比对 `.egon/codegen/state.json` 的 `previousGeneratedHash`，只要存在被声明的定制就返回 `{"status":"DRIFT"}`（退出码 8）；而 `plan` 对已受管产物不报 `CONFLICT`（实测 `pending 0 / conflicts []`），因此 Step 5 File 3 "手工改动本文件将使未来 `plan` 报 `CONFLICT`"的口径也不准确。DDL 侧无漂移：`V20260923_001` 实际 sha256 `1904922e16dc…44a17` 与 Manifest 逐字节一致 | 判据改为可判定形式并保持同等强度：`check` 的 DRIFT 集合必须是 §11 `RISK-P3` 声明定制集合的子集、且不含任何未声明文件。实测 DRIFT = {`BrandDAO.java`、`BrandDAO.xml`、`BrandDomainService.java`、`BrandDomainServiceImpl.java`、`BrandManage.java`、`BrandManageImpl.java`、`BrandRepository.java`、`BrandResult.java`、`BrandResultConverter.java`}（Step 9 提交后再加 `BrandController.java` 共 10 项），其余 13 项 `CLEAN`（含 §11 标注"无改"的 `BrandDomainQuery.java` 与 `BrandPersistenceConverter.java`）；`plan` 仍退出码 0。不为了取 0 而回退定制或删改 `state.json` | 本条 |
 
 生成物与手写边界未被削弱：目录产物（22 文件）仍全部由 `egon-codegen.sh plan/apply` 产出，`check` 与 `CONFLICT` 语义未绕过；被声明的定制（`BrandDAO`/`BrandDAO.xml`/`BrandRepository`/`BrandDomainService(Impl)`/`BrandManage(Impl)`/`BrandResult`/`BrandResultConverter`/`BrandController`）与 §11 `RISK-P3` 的运维模型一致。
+
+### 13.1 `PLAN-CLAR-026` — Step 10 键奇偶判据（用户 2026-09-24 裁定选 A）
+
+实测事实（纯静态扁平化四份 YAML 的全部键路径，未启动 Spring、未连任何实例）：base `application.yml` 308 键，`application-dev.yml` 198 键，`application-test.yml` 202 键，`application-prod.yml` 202 键；**110 个键仅存在于 base**（`app.logging.async.*`、`app.logging.error-total-size-cap`、`app.logging.instance-name`、`logging.group.*`、`logging.file.path`、`app.integrations.redis.ttl`、`app.integrations.rabbitmq.exchange`、`app.integrations.external-http.*-base-url` 等），**4 个键仅存在于 `-test`**（`management.health.rabbit.enabled`、`management.health.redis.enabled` 及其父节点）。因此 Step 10 File 6 的 `four_profiles_have_identical_key_sets`（"全部键集合相等"）在 archetype 样例基线上不可成立：archetype 的设计是"全量配置在 base、profile 只放覆写"。
+
+裁定后的判据口径（替代原伪代码，不削弱而是更可判定）：
+
+1. **本变更所辖键族的严格奇偶**：`egon.cola.component.tianshu.enabled`、`…tianshu.redis.enabled`、`…tianshu.registry.enabled`、`…tianshu.registry.http.enabled`、`…platform.tianquan.shoubing.enabled`、`egon.cola.component.yuheng.openapi.enabled` 与 `egon.cola.component.mybatis-plus.sharding.tables.brand` 在四份文件中必须逐键存在且缺省值语义一致（治理开关缺省 `false`）。
+2. **不新增 profile-only 键**：本变更不得成为任何"只出现在单一 profile"的键的来源；断言以"本变更所辖键集合 ⊖ 四份交集 == 空"表达。
+3. **样例既有不对称登记为 §11 `RISK-P6`**：110 个 base-only + 4 个 test-only 键差属 archetype 样例基线债务，本迭代不批量搬键（那会构成 Step 10 未授权的 ~330 行超范围改动，并侵入 `logging.file.path` 这类本应逐环境取不同值的键），收口须另立 Spec。审计口径：`REQ-004`/`TEST-013` 判 `Partial`——治理键族已满足，全库键奇偶为已登记的后续项。
+
+`Rule 7` 原文（"多环境配置文件必须保持配置一致，但值不一定一致"）与 `references/user-mandated-java-rules.md` Rule 7 执行契约（"require identical structure/**core** key sets"）在该口径下逐字满足：变更所辖的每个键在 base 与全部环境文件中同现，仅值可不同。
