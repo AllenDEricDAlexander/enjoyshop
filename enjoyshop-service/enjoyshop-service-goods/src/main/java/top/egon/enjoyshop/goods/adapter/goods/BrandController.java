@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springdoc.core.annotations.ParameterObject;
 import top.egon.cola.component.common.core.exception.CommonException;
 import top.egon.cola.component.common.core.pojo.PageQuery;
 import top.egon.cola.component.common.core.pojo.PageResultRecord;
@@ -79,10 +80,11 @@ public class BrandController {
     @GetMapping
     @Operation(operationId = "listBrands", summary = "查询品牌集合")
     @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "查询成功"),
             @ApiResponse(responseCode = "400", description = "参数不合法（含 seq 区间倒置）"),
             @ApiResponse(responseCode = "500", description = "服务内部错误")
     })
-    public PageResultRecord<BrandVO> listBrands(@Valid BrandListRequest request) {
+    public PageResultRecord<BrandVO> listBrands(@Valid @ParameterObject BrandListRequest request) {
         if (request.seqMin() != null && request.seqMax() != null && request.seqMax() < request.seqMin()) {
             throw new CommonException(GoodsErrorStatus.BRAND_REQUEST_INVALID);
         }
@@ -96,6 +98,7 @@ public class BrandController {
     @GetMapping("/{brandId}")
     @Operation(operationId = "getBrand", summary = "查询品牌详情")
     @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "查询成功"),
             @ApiResponse(responseCode = "400", description = "品牌标识不合法"),
             @ApiResponse(responseCode = "404", description = "品牌不存在或已下架"),
             @ApiResponse(responseCode = "500", description = "服务内部错误")
