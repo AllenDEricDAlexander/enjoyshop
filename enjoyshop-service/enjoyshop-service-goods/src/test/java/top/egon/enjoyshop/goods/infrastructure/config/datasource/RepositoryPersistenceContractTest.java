@@ -59,7 +59,7 @@ class RepositoryPersistenceContractTest extends top.egon.enjoyshop.goods.support
         try (var files = Files.walk(Path.of("src/main/resources/mybatis/mapper"))) {
             mappings = files.filter(file -> file.toString().endsWith("DAO.xml")).toList();
         }
-        assertThat(mappings).hasSize(8);
+        assertThat(mappings).hasSize(9);
         for (Path path : mappings) {
             String xml = Files.readString(path);
             assertThat(xml).as(path.toString()).doesNotContain("is_deleted", "${");
