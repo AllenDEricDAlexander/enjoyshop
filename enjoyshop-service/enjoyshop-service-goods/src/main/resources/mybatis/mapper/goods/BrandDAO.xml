@@ -45,4 +45,29 @@
         ORDER BY id ASC
         LIMIT #{limit} OFFSET #{offset}
     </select>
+    <!-- Catalog read: business ordering plus the total count. The name parameter is a prefixed,
+         ESCAPE-protected pattern owned by BrandRepository; tenant predicates stay with the interceptor. -->
+    <select id="listBrandPage" resultMap="BrandPOResultMap">
+        SELECT <include refid="columns"/> FROM brand
+        WHERE deleted_at IS NULL
+        <if test="name != null and name != ''">AND name LIKE #{name} ESCAPE '\'</if>
+        <if test="letter != null and letter != ''">AND letter = #{letter}</if>
+        <if test="seqMin != null">AND seq &gt;= #{seqMin}</if>
+        <if test="seqMax != null">AND seq &lt;= #{seqMax}</if>
+        ORDER BY seq DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countBrandPage" resultType="long">
+        SELECT COUNT(*) FROM brand
+        WHERE deleted_at IS NULL
+        <if test="name != null and name != ''">AND name LIKE #{name} ESCAPE '\'</if>
+        <if test="letter != null and letter != ''">AND letter = #{letter}</if>
+        <if test="seqMin != null">AND seq &gt;= #{seqMin}</if>
+        <if test="seqMax != null">AND seq &lt;= #{seqMax}</if>
+    </select>
+    <select id="countActiveByName" resultType="long">
+        SELECT COUNT(*) FROM brand
+        WHERE deleted_at IS NULL AND name = #{name}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
 </mapper>
