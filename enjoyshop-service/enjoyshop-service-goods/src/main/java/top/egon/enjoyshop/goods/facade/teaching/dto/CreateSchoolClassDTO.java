@@ -1,0 +1,13 @@
+package top.egon.enjoyshop.goods.facade.teaching.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import top.egon.enjoyshop.goods.facade.validation.NativeRpcValidationGroup;
+
+import top.egon.cola.component.common.core.pojo.BasePojo;
+
+public record CreateSchoolClassDTO(
+        @NotBlank(groups = NativeRpcValidationGroup.class) String name,
+        @NotBlank(groups = NativeRpcValidationGroup.class) String semester,
+        @NotBlank(groups = NativeRpcValidationGroup.class) String operatorId,
+        @NotBlank(groups = NativeRpcValidationGroup.class) String requestId) implements BasePojo {
+}

@@ -1,0 +1,2 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+top.egon.enjoyshop.goods.start.config.encryption.ConfigDecryptEnvironmentPostProcessor

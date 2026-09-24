@@ -269,8 +269,10 @@ enjoyshop/
 │       │   ├── goods/BrandOpenApiContractTest.java           CREATE（Step 11）
 │       │   └── handler/BaseExceptionHandlerTest.java         CREATE（Step 8）
 │       ├── src/test/java/top/egon/enjoyshop/goods/adapter/handler/
-│       │   └── ResponseWrapperHandlerTest.java               GENERATED-ROOT 自带 → DELETE（Step 1，`DEC-115`）
-│       ├── src/test/java/architecture/LightPersistenceArchitectureTest.java   GENERATED-ROOT 自带 → MODIFY（Step 1 四个计数期望值 8→9/9/6，`DEC-117`）
+│       │   ├── ResponseWrapperHandlerTest.java               GENERATED-ROOT 自带 → DELETE（Step 1，`DEC-115`）
+│       │   └── GlobalExceptionHandlerTest.java               GENERATED-ROOT 自带 → DELETE（Step 1，`DEC-115`/`PLAN-CLAR-017`）
+│       ├── src/test/java/top/egon/enjoyshop/goods/architecture/LightPersistenceArchitectureTest.java   GENERATED-ROOT 自带 → MODIFY（Step 1 四个计数期望值 8→9/9/6，`DEC-117`）
+│       ├── src/test/java/top/egon/enjoyshop/goods/architecture/ArchetypeContractConvergenceTest.java   GENERATED-ROOT 自带 → MODIFY（Step 1 删除仅针对已删 `GlobalExceptionHandler` 的三行断言，`PLAN-CLAR-017`）
 │       └── src/main/resources/
 │           ├── egon-mybatis-plus-sharding.yml                GENERATED-ROOT 自带 → MODIFY（Step 10 brand 表注册）
 │           ├── application.yml                               GENERATED-ROOT 自带 → MODIFY（Step 10 brand 表注册；tianshu/yuheng 键保持缺省关闭）
@@ -337,6 +339,7 @@ enjoyshop/
 | `PLAN-CLAR-014` | `TenantContextFilter` 由「修改 web 自带 `OrganizationAuthContextFilter` 一行」改为**新增**独立过滤器（`DEC-116`）；自带 `RequestContextFilter`（`X-Operator-Id` 加 ThreadLocal）与 `TraceIdFilter`（MDC `traceId`）保持原样 | Spec `EVD-027`：light 的 `RequestContextFilter` 用 `RequestContextHolder`（ThreadLocal）而**不写 MDC**，而 `EVD-012` 的 MP-SDJ 租户拦截器只从 MDC `tenantId` 取值 | §7.3.1 步骤 1 的可观察行为（`X-Tenant-Id` 缺省写 `1`、操作者缺省写空白、finally 清理）与 `TEST-016` 的 401 断言完全一致；只是实现落点从「改自带」变为「新增」 | 若沿用自带过滤器而不写 MDC，每条 SQL 落库都 `TENANT_CONTEXT_MISSING` |
 | `PLAN-CLAR-015` | codegen 配置的 `projectType` 由 `web` 改为 `light`，并**删除** `modulePaths` 块；22 个产物的 Java 包名与文件名一字不改 | Spec `EVD-028`：`CodegenProfileEnum.LIGHT.allowsController()` 为 true；`LightLayout` 与 `WebLayout` 的 `allows` 集合相同且共用同一个 `javaPackage(config, artifact)` 映射，唯一差别是 `LightLayout.relativePath` 用空前缀 | Step 4 的产物清单、Step 5 至 Step 9 的包路径、Step 10 的测试位置全部沿用原 Plan 文本，只需去掉 Maven 模块目录层 | 若误留 `modulePaths`，`LightLayout` 不读它（无副作用），但配置文件会误导后续维护者 |
 | `PLAN-CLAR-016` | Step 10 的 `ProfileKeyParityTest` 从 `enjoyshop-service-goods-starter/src/test/...` 移到单模块的 `src/test/java/top/egon/enjoyshop/goods/start/config/`；各 Step 的验证命令去掉全部 `-pl` 模块选择器，改为整工程加 `-Dtest=测试类名` | light 是单模块工程，没有 `enjoyshop-service-goods-starter` 这个 Maven 模块；其自带配置类位于 `top.egon.enjoyshop.goods.start.config`（`EVD-027` 的 pom 与 `OpenApiConfig` 等） | 测试目标、四份 profile 与 sharding yml 的键集合断言完全不变 | 若保留 `-pl`，Maven 直接报 `Could not find the selected project in the reactor` |
+| `PLAN-CLAR-017` | **执行期新增（2026-09-24，Step 1 File 1b 阻塞经用户裁定）**：`DEC-115` 的删除清单由 4 个文件扩为 **5 个**（追加自带单测 `src/test/java/top/egon/enjoyshop/goods/adapter/handler/GlobalExceptionHandlerTest.java`），并删除自带架构契约测试 `src/test/java/top/egon/enjoyshop/goods/architecture/ArchetypeContractConvergenceTest.java` 中**仅针对已删除类**的三行断言（原 256-258 行：`read(modulePath("adapter/handler/GlobalExceptionHandler.java"))` 与两条 `assertTrue/assertFalse`）。同一 Method 内 251-255 行的异常体系断言（`BaseBusinessException extends BusinessException`、`ConfigDecryptException extends CommonException`）一字不动。另：verifier 实际路径为 `src/test/java/top/egon/enjoyshop/goods/architecture/LightPersistenceArchitectureTest.java`（非 §5 原写的 `src/test/java/architecture/`），四个计数在 44/52/53/54 行（非 47/55/56/57），值仍为 8/8/8/5→9/9/9/6 | Step 1 实测生成物：`grep -rln "ApiResponse\|ResponseWrapperHandler\|GlobalExceptionHandler" src/` 命中 7 个文件，其中两个不在本 Plan 删除清单内（`GlobalExceptionHandlerTest.java` 是待删类的专属单测；`ArchetypeContractConvergenceTest.java:256` 硬 `read()` 待删文件）。File 1b 原文预设了该冲突并要求"本 Step 阻塞并按 `DEC-115` 报告，不得弱化自带断言"，实测确认成立，故按用户"先生成，生成后删除"的裁定闭合 | 品牌链路的可观察契约零变化：`ResultRecord`/`PageResultRecord` 信封、6101xx 码、五个 operationId、HTTP 状态逐字不变；被删的三行断言描述的是**已被 `DEC-115` 下令删除的类**的内部实现细节，保留它在逻辑上不可能成立，不属于"弱化断言以通过测试"；verifier 的全部语义断言（`extends EgonModel<`/`extends EgonColaRepository<`/`repo.dao` 禁止/pom 依赖）未动 | 若不扩删除清单，Step 11 全量 `./mvnw test` 因 `GlobalExceptionHandlerTest` 编译失败与 `ArchetypeContractConvergenceTest` 抛 `NoSuchFileException` 而必然不通过 |
 
 ## 7. Ordered File-by-file Implementation Steps
 
@@ -386,7 +389,7 @@ grep -A2 "<parent>" enjoyshop-service/enjoyshop-service-goods/pom.xml   # parent
 #### File 1b — `DELETE` light 自带的全局信封设施（`DEC-115`）
 
 - Purpose: 移除会对品牌链路二次包装与争抢异常处理的三个自带类，使 `ResultRecord` 信封与 `BaseExceptionHandler` 成为品牌链路上唯一的信封与唯一的 advice。
-- Symbols: 删除 `src/main/java/top/egon/enjoyshop/goods/adapter/handler/{ApiResponse,GlobalExceptionHandler,ResponseWrapperHandler}.java` 与 `src/test/java/top/egon/enjoyshop/goods/adapter/handler/ResponseWrapperHandlerTest.java`。
+- Symbols: 删除 `src/main/java/top/egon/enjoyshop/goods/adapter/handler/{ApiResponse,GlobalExceptionHandler,ResponseWrapperHandler}.java`、`src/test/java/top/egon/enjoyshop/goods/adapter/handler/ResponseWrapperHandlerTest.java` 与 `src/test/java/top/egon/enjoyshop/goods/adapter/handler/GlobalExceptionHandlerTest.java`（共 5 个文件，后一项由 `PLAN-CLAR-017` 扩入）；并删除 `src/test/java/top/egon/enjoyshop/goods/architecture/ArchetypeContractConvergenceTest.java` 中仅读取已删类的三行断言（`PLAN-CLAR-017`）。
 - Repository evidence: Spec `EVD-027`——`ResponseWrapperHandler` 是 `@ControllerAdvice(basePackages="${package}.adapter")` 加 `ResponseBodyAdvice`，`beforeBodyWrite` 把非 `ApiResponse` 返回值一律包成 `ApiResponse.success(body)`；`GlobalExceptionHandler` 是无 `basePackages` 限定的 `@RestControllerAdvice`，已占用 `MethodArgumentNotValidException`／`ValidationException`／`IllegalArgumentException`。
 - Dependencies and consumers: Step 8 的 `BaseExceptionHandler`、Step 9 的 `BrandController`；样例域 teaching／user 端点将回退到 Spring 默认错误处理（Spec `RISK-014` 已登记该代价）。
 - Why now: 必须在任何品牌代码落盘前完成，否则 Step 8/9 的信封断言会被自带 advice 污染。
