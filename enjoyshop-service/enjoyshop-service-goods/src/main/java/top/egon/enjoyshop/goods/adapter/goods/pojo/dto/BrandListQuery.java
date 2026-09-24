@@ -21,7 +21,7 @@ import jakarta.validation.constraints.Size;
  * @param pageSize page size, default 10 and hard maximum 500
  */
 @Schema(description = "品牌集合查询参数；pageNo 与 pageSize 均缺失为全量模式（pageSize=500）")
-public record BrandListRequest(
+public record BrandListQuery(
         @Schema(description = "名称前缀过滤") @Size(max = 120) String name,
         @Schema(description = "首字母精确过滤") @Pattern(regexp = "[A-Za-z]") String letter,
         @Schema(description = "seq 区间下界") @Min(0) Integer seqMin,

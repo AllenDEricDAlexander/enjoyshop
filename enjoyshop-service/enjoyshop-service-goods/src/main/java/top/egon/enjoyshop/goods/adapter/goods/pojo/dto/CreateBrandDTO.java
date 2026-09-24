@@ -20,7 +20,7 @@ import jakarta.validation.constraints.Size;
  * @param seq    ordering weight; absent means the server supplies {@code 0}
  */
 @Schema(description = "新增品牌请求")
-public record CreateBrandRequest(
+public record CreateBrandDTO(
         @Schema(description = "品牌名称，租户内有效行唯一") @NotBlank @Size(max = 120) String name,
         @Schema(description = "品牌图片 URL，可空") @Size(max = 500) String image,
         @Schema(description = "首字母，单字符 A-Z") @NotBlank @Pattern(regexp = "[A-Za-z]") String letter,

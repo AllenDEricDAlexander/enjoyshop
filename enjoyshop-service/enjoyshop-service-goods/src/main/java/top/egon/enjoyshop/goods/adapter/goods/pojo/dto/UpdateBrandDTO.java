@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Size;
 /**
  * Inbound payload of {@code API-004}: a complete replacement of the editable columns.
  *
- * <p>Unlike {@link CreateBrandRequest} both {@code seq} and {@code version} are mandatory, because
+ * <p>Unlike {@link CreateBrandDTO} both {@code seq} and {@code version} are mandatory, because
  * whole-resource replacement has no "keep the previous value" semantics and the optimistic lock must
  * come from the caller's most recent read (Spec §9.2.4).</p>
  *
@@ -23,7 +23,7 @@ import jakarta.validation.constraints.Size;
  * @param version optimistic-lock revision the caller last read
  */
 @Schema(description = "整替换品牌请求")
-public record UpdateBrandRequest(
+public record UpdateBrandDTO(
         @Schema(description = "品牌名称，租户内有效行唯一") @NotBlank @Size(max = 120) String name,
         @Schema(description = "品牌图片 URL；显式 null 即清空") @Size(max = 500) String image,
         @Schema(description = "首字母，单字符 A-Z") @NotBlank @Pattern(regexp = "[A-Za-z]") String letter,
