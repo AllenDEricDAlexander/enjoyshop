@@ -5,6 +5,11 @@
       "version": "20260913_001",
       "path": "db/egon-mp/V20260913_001__initialize_repository_schema.sql",
       "sha256": "e4936cb2a7943d50cd4b7d7b49252d9712513a2f27ade70f125d2bf8f335ea31"
+    },
+    {
+      "version": "20260923_001",
+      "path": "db/egon-mp/V20260923_001__initialize_goods_schema.sql",
+      "sha256": "42c589eec13d78772f5bc9ac87c27dea39521967b66753df5ee97d205906e391"
     }
   ]
 }
