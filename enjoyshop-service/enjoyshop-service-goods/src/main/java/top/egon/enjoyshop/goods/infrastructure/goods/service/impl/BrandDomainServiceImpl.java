@@ -93,4 +93,22 @@ public class BrandDomainServiceImpl implements BrandDomainService {
         }
         return PageSlice.of(rows.stream().map(converter::toTarget).toList(), hasNext);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsActiveByName(String name, Long excludeId) {
+        return repository.countActiveByName(name, excludeId) > 0;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BrandBO> listPage(BrandDomainQuery query, Integer seqMin, Integer seqMax) {
+        return converter.toTargetList(repository.selectBrandPage(query, seqMin, seqMax));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countPage(BrandDomainQuery query, Integer seqMin, Integer seqMax) {
+        return repository.countBrandPage(query, seqMin, seqMax);
+    }
 }

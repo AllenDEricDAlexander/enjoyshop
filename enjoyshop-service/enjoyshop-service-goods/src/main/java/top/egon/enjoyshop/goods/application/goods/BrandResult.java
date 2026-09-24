@@ -15,6 +15,9 @@ public class BrandResult {
 
     private String id;
 
+    /** Optimistic-lock revision echoed back so writers can supply expectedVersion. */
+    private Long version;
+
     private String name;
 
     private String image;

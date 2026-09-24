@@ -12,5 +12,6 @@ public interface BrandResultConverter extends BaseForwardConverter<BrandBO, Bran
 
     @Override
     @Mapping(target = "id", expression = "java(source.getId() == null ? null : Long.toString(source.getId()))")
+    @Mapping(target = "version", source = "version")
     BrandResult toTarget(BrandBO source);
 }
