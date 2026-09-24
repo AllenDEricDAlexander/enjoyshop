@@ -12,7 +12,8 @@ import top.egon.cola.component.common.mybatis.autoconfigure.EgonColaMybatisPlusP
 @EnableConfigurationProperties(EgonColaMybatisPlusProperties.class)
 @MapperScan(basePackages = {
         "top.egon.enjoyshop.goods.infrastructure.user.dao",
-        "top.egon.enjoyshop.goods.infrastructure.teaching.dao"
+        "top.egon.enjoyshop.goods.infrastructure.teaching.dao",
+        "top.egon.enjoyshop.goods.infrastructure.goods.dao"
 })
 public class StudentManagementApplication {
 
