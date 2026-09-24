@@ -11,6 +11,9 @@ import top.egon.enjoyshop.goods.application.user.manage.UserManage;
 import top.egon.enjoyshop.goods.application.user.pojo.result.UserResult;
 import top.egon.enjoyshop.goods.start.StudentManagementApplication;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,9 +37,17 @@ class NativeHttpCompatibilityTest extends top.egon.enjoyshop.goods.support.Persi
         mockMvc.perform(post("/api/users").header("X-Operator-Id", "operator-1")
                         .header("X-Request-Id", "request-1").contentType("application/json")
                         .content("{\"externalId\":\"external-1\",\"name\":\"Mario\",\"email\":\"mario@example.com\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.code").value("OK"))
-                .andExpect(jsonPath("$.data.id").value("1001"))
-                .andExpect(jsonPath("$.data.name").value("Mario"));
+                // DEC-115 已删除自带 ResponseWrapperHandler/ApiResponse：样例域端点不再加信封，
+                // 直接序列化 UserDetailVO（id 为 String 投影）。公开访问、请求上下文、JSON 契约三项保证不变。
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("1001"))
+                .andExpect(jsonPath("$.name").value("Mario"))
+                .andExpect(jsonPath("$.email").value("mario@example.com"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                // 信封确已消失：不再有 code/data 包装层（外形回归即失败）
+                .andExpect(jsonPath("$.code").doesNotExist())
+                .andExpect(jsonPath("$.data").doesNotExist());
+        // 真实契约所在：请求头 X-Operator-Id/X-Request-Id 经 RequestContext 透传进 CreateUserCommand
         verify(userManage).create(new top.egon.enjoyshop.goods.application.user.pojo.command.CreateUserCommand(
                 "external-1", "Mario", "mario@example.com", "operator-1", "request-1"));
     }
@@ -82,9 +93,15 @@ class NativeHttpCompatibilityTest extends top.egon.enjoyshop.goods.support.Persi
 
         @Test
         void uncatalogued_operations_require_explicit_operation_ids_before_publication() throws Exception {
-            governedMvc.perform(get("/v3/api-docs/legacy").header("Authorization", "Bearer docs-token"))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value("catalogued OpenAPI operationId is required"));
+            // DEC-115 已删除自带 GlobalExceptionHandler：治理拒绝不再被翻译成 400 + $.message 信封，
+            // IllegalArgumentException 原样穿过 servlet 栈（FrameworkServlet 包成 ServletException）。
+            // 治理保证本身不变——未编目 operationId 的分组在发布前被拒，且拒绝原因仍是该消息——故在根因处断言。
+            jakarta.servlet.ServletException refusal = assertThrows(jakarta.servlet.ServletException.class,
+                    () -> governedMvc.perform(get("/v3/api-docs/legacy")
+                            .header("Authorization", "Bearer docs-token")));
+            Throwable rootCause = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(refusal);
+            assertInstanceOf(IllegalArgumentException.class, rootCause);
+            assertEquals("catalogued OpenAPI operationId is required", rootCause.getMessage());
         }
 
         @Test
