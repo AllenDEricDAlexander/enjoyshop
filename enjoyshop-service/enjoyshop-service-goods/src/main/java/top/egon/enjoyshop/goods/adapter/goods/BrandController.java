@@ -30,9 +30,9 @@ import top.egon.cola.component.common.core.pojo.PageQuery;
 import top.egon.cola.component.common.core.pojo.PageResultRecord;
 import top.egon.cola.component.common.core.pojo.ResultRecord;
 import top.egon.enjoyshop.goods.adapter.goods.pojo.convertor.BrandAdapterConverter;
-import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.BrandListRequest;
-import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.CreateBrandRequest;
-import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.UpdateBrandRequest;
+import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.BrandListQuery;
+import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.CreateBrandDTO;
+import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.UpdateBrandDTO;
 import top.egon.enjoyshop.goods.adapter.goods.pojo.vo.BrandVO;
 import top.egon.enjoyshop.goods.application.goods.BrandDetailQuery;
 import top.egon.enjoyshop.goods.application.goods.BrandManage;
@@ -84,7 +84,7 @@ public class BrandController {
             @ApiResponse(responseCode = "400", description = "参数不合法（含 seq 区间倒置）"),
             @ApiResponse(responseCode = "500", description = "服务内部错误")
     })
-    public PageResultRecord<BrandVO> listBrands(@Valid @ParameterObject BrandListRequest request) {
+    public PageResultRecord<BrandVO> listBrands(@Valid @ParameterObject BrandListQuery request) {
         if (request.seqMin() != null && request.seqMax() != null && request.seqMax() < request.seqMin()) {
             throw new CommonException(GoodsErrorStatus.BRAND_REQUEST_INVALID);
         }
@@ -121,7 +121,7 @@ public class BrandController {
             @ApiResponse(responseCode = "409", description = "品牌名称已存在"),
             @ApiResponse(responseCode = "500", description = "服务内部错误")
     })
-    public ResponseEntity<ResultRecord<BrandVO>> createBrand(@Valid @RequestBody CreateBrandRequest request) {
+    public ResponseEntity<ResultRecord<BrandVO>> createBrand(@Valid @RequestBody CreateBrandDTO request) {
         BrandVO created = converter.toTarget(manage.create(converter.toTarget(request)));
         log.info("http create brand id={}", created.id());
         return ResponseEntity.created(URI.create(BASE_PATH + "/" + created.id()))
@@ -139,7 +139,7 @@ public class BrandController {
             @ApiResponse(responseCode = "500", description = "服务内部错误")
     })
     public ResultRecord<BrandVO> updateBrand(@Positive @PathVariable Long brandId,
-            @Valid @RequestBody UpdateBrandRequest request) {
+            @Valid @RequestBody UpdateBrandDTO request) {
         log.info("http update brand id={}", brandId);
         return ResultRecord.success(converter.toTarget(manage.update(converter.toCommand(brandId, request))));
     }
@@ -165,7 +165,7 @@ public class BrandController {
         return ResultRecord.success(Boolean.TRUE);
     }
 
-    private static PageQuery toPageQuery(BrandListRequest request) {
+    private static PageQuery toPageQuery(BrandListQuery request) {
         if (request.pageNo() == null && request.pageSize() == null) {
             return new PageQuery(PageQuery.DEFAULT_PAGE_NO, PageQuery.MAX_PAGE_SIZE);
         }

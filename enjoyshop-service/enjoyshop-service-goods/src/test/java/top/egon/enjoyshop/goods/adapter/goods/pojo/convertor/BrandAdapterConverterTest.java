@@ -1,8 +1,8 @@
 package top.egon.enjoyshop.goods.adapter.goods.pojo.convertor;
 
 import org.junit.jupiter.api.Test;
-import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.CreateBrandRequest;
-import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.UpdateBrandRequest;
+import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.CreateBrandDTO;
+import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.UpdateBrandDTO;
 import top.egon.enjoyshop.goods.adapter.goods.pojo.vo.BrandVO;
 import top.egon.enjoyshop.goods.application.goods.BrandResult;
 import top.egon.enjoyshop.goods.application.goods.CreateBrandCommand;
@@ -63,7 +63,7 @@ class BrandAdapterConverterTest {
     @Test
     void update_request_version_maps_to_expected_version() {
         UpdateBrandCommand command = converter.toCommand(90001L,
-                new UpdateBrandRequest("  Apple   Store ", null, "b", 7, 42L));
+                new UpdateBrandDTO("  Apple   Store ", null, "b", 7, 42L));
 
         assertThat(command.getId()).isEqualTo(90001L);
         assertThat(command.getExpectedVersion()).isEqualTo(42L);
@@ -73,7 +73,7 @@ class BrandAdapterConverterTest {
         assertThat(command.getSeq()).isEqualTo(7);
     }
 
-    private static CreateBrandRequest request(String name, String letter, Integer seq) {
-        return new CreateBrandRequest(name, IMAGE, letter, seq);
+    private static CreateBrandDTO request(String name, String letter, Integer seq) {
+        return new CreateBrandDTO(name, IMAGE, letter, seq);
     }
 }

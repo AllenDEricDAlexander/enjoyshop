@@ -7,9 +7,9 @@ import org.mapstruct.Named;
 import org.mapstruct.ReportingPolicy;
 import top.egon.cola.component.common.core.converter.BaseForwardConverter;
 import top.egon.cola.component.common.core.pojo.PageQuery;
-import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.BrandListRequest;
-import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.CreateBrandRequest;
-import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.UpdateBrandRequest;
+import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.BrandListQuery;
+import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.CreateBrandDTO;
+import top.egon.enjoyshop.goods.adapter.goods.pojo.dto.UpdateBrandDTO;
 import top.egon.enjoyshop.goods.adapter.goods.pojo.vo.BrandVO;
 import top.egon.enjoyshop.goods.application.goods.BrandPageQuery;
 import top.egon.enjoyshop.goods.application.goods.BrandResult;
@@ -41,7 +41,7 @@ public interface BrandAdapterConverter extends BaseForwardConverter<BrandResult,
     @Mapping(target = "name", source = "name", qualifiedByName = "normalizeName")
     @Mapping(target = "letter", source = "letter", qualifiedByName = "normalizeLetter")
     @Mapping(target = "seq", expression = "java(source.seq() == null ? 0 : source.seq())")
-    CreateBrandCommand toTarget(CreateBrandRequest source);
+    CreateBrandCommand toTarget(CreateBrandDTO source);
 
     /**
      * {@code API-004}: the path identifier and the caller's revision become the guarded write
@@ -51,7 +51,7 @@ public interface BrandAdapterConverter extends BaseForwardConverter<BrandResult,
     @Mapping(target = "expectedVersion", source = "request.version")
     @Mapping(target = "name", source = "request.name", qualifiedByName = "normalizeName")
     @Mapping(target = "letter", source = "request.letter", qualifiedByName = "normalizeLetter")
-    UpdateBrandCommand toCommand(Long brandId, UpdateBrandRequest request);
+    UpdateBrandCommand toCommand(Long brandId, UpdateBrandDTO request);
 
     /**
      * {@code API-001}: blank filters are treated as absent; {@code seqMin}/{@code seqMax} are not
@@ -60,7 +60,7 @@ public interface BrandAdapterConverter extends BaseForwardConverter<BrandResult,
     @Mapping(target = "name", source = "request.name", qualifiedByName = "nullIfBlank")
     @Mapping(target = "letter", source = "request.letter", qualifiedByName = "nullIfBlankUpper")
     @Mapping(target = "page", source = "page")
-    BrandPageQuery toPageQuery(BrandListRequest request, PageQuery page);
+    BrandPageQuery toPageQuery(BrandListQuery request, PageQuery page);
 
     @Override
     @Mapping(target = "id", expression = "java(source.getId() == null ? null : Long.valueOf(source.getId()))")
