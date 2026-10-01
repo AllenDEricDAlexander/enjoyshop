@@ -49,8 +49,8 @@ class LightPersistenceArchitectureTest {
             }
         }
 
-        assertEquals(9, count(javaFiles, "PO.java"));
-        assertEquals(9, count(javaFiles, "DAO.java"));
+        assertEquals(10, count(javaFiles, "PO.java"));
+        assertEquals(10, count(javaFiles, "DAO.java"));
         assertEquals(6, count(javaFiles, "DomainServiceImpl.java"));
         assertFalse(source.contains("class ShardingDataSourceBootstrapper"));
         assertFalse(source.contains("YamlShardingSphereDataSourceFactory"));

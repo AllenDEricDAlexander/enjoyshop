@@ -1,0 +1,17 @@
+{
+  "configVersion": 1,
+  "projectType": "light",
+  "basePackage": "top.egon.enjoyshop.goods",
+  "domain": "goods",
+  "outputRoot": "enjoyshop-service/enjoyshop-service-goods",
+  "input": {
+    "mode": "manifest",
+    "resourceRoot": "enjoyshop-service/enjoyshop-service-goods/src/main/resources",
+    "manifest": "db/egon-mp/repository-manifest.json"
+  },
+  "logicalTables": ["spec"],
+  "artifacts": ["po"],
+  "existingTypeMappings": {
+    "dao": "top.egon.enjoyshop.goods.infrastructure.goods.dao.SpecDAO"
+  }
+}

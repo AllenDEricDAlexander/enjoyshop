@@ -7,10 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.List;
-import org.springframework.validation.annotation.Validated;
 import top.egon.cola.component.common.core.pojo.PageSlice;
 
-@Validated
 public interface BrandDomainService {
 
     BrandBO create(@Valid BrandBO value);
