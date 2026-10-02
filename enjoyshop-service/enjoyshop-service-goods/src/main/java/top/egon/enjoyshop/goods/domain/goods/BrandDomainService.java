@@ -6,7 +6,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.groups.ConvertGroup;
+import jakarta.validation.groups.Default;
 import java.util.List;
+import top.egon.enjoyshop.goods.common.validation.GoodsCatalogQueryValidationGroup;
 import top.egon.cola.component.common.core.pojo.PageSlice;
 
 public interface BrandDomainService {
@@ -30,8 +33,14 @@ public interface BrandDomainService {
     boolean existsActiveByName(@NotBlank @Size(max = 120) String name, @Positive Long excludeId);
 
     /** Catalog ordered page: sequence descending with the identifier as the tie breaker. */
-    List<BrandBO> listPage(@Valid @NotNull BrandDomainQuery query, @Min(0) Integer seqMin, @Min(0) Integer seqMax);
+    List<BrandBO> listPage(
+            @Valid @NotNull @ConvertGroup(from = Default.class, to = GoodsCatalogQueryValidationGroup.class)
+                    BrandDomainQuery query,
+            @Min(0) Integer seqMin, @Min(0) Integer seqMax);
 
     /** Total rows behind {@link #listPage} so the page envelope can carry {@code total}. */
-    long countPage(@Valid @NotNull BrandDomainQuery query, @Min(0) Integer seqMin, @Min(0) Integer seqMax);
+    long countPage(
+            @Valid @NotNull @ConvertGroup(from = Default.class, to = GoodsCatalogQueryValidationGroup.class)
+                    BrandDomainQuery query,
+            @Min(0) Integer seqMin, @Min(0) Integer seqMax);
 }

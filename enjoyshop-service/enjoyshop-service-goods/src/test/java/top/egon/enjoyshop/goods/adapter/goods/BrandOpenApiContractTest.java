@@ -96,12 +96,17 @@ class BrandOpenApiContractTest extends top.egon.enjoyshop.goods.support.Persiste
         // API-001 is fully optional: the absence of both page parameters is what selects full-catalog mode.
         JsonNode listParameters = operation(paths, COLLECTION, "get").path("parameters");
         assertThat(names(listParameters))
-                .containsExactlyInAnyOrder("name", "letter", "seqMin", "seqMax", "pageNo", "pageSize");
+                .containsExactlyInAnyOrder(
+                        "name", "letter", "seqMin", "seqMax", "pageNo", "pageSize", "categoryName");
         for (JsonNode param : listParameters) {
             assertThat(param.path("required").asBoolean())
                     .as("list parameter %s stays optional", param.path("name").asText())
                     .isFalse();
         }
+        JsonNode categoryName = parameter(operation(paths, COLLECTION, "get"), "categoryName");
+        assertThat(categoryName.path("in").asText()).isEqualTo("query");
+        assertThat(categoryName.at("/schema/type").asText()).isEqualTo("string");
+        assertThat(categoryName.at("/schema/maxLength").asInt()).isEqualTo(120);
     }
 
     @Test

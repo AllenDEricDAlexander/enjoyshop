@@ -40,8 +40,15 @@ class BrandQuerySqlShapeTest {
             assertThat(statement).contains("letter = #{letter}");
             assertThat(statement).contains("seq &gt;= #{seqMin}");
             assertThat(statement).contains("seq &lt;= #{seqMax}");
+            assertThat(statement).contains("<if test=\"categoryName != null and categoryName != ''\">");
+            assertThat(statement).contains("AND EXISTS (", "FROM category c");
+            assertThat(statement).contains("JOIN category_brand cb ON cb.category_id = c.id AND cb.tenant_id = c.tenant_id");
+            assertThat(statement).contains("WHERE c.name = #{categoryName}");
+            assertThat(statement).contains("AND cb.brand_id = brand.id");
+            assertThat(statement).contains("AND c.tenant_id = brand.tenant_id");
+            assertThat(statement).contains("AND c.deleted_at IS NULL");
+            assertThat(statement).contains("AND cb.deleted_at IS NULL");
             assertThat(statement).doesNotContain("SELECT *");
-            assertThat(statement).doesNotContain("tenant_id");
         }
         String countPage = selectStatement("countBrandPage");
         assertThat(countPage).doesNotContain("ORDER BY");

@@ -51,6 +51,18 @@
         SELECT <include refid="columns"/> FROM brand
         WHERE deleted_at IS NULL
         <if test="name != null and name != ''">AND name LIKE #{name} ESCAPE '\'</if>
+        <if test="categoryName != null and categoryName != ''">
+            AND EXISTS (
+                SELECT 1
+                FROM category c
+                JOIN category_brand cb ON cb.category_id = c.id AND cb.tenant_id = c.tenant_id
+                WHERE c.name = #{categoryName}
+                    AND cb.brand_id = brand.id
+                    AND c.tenant_id = brand.tenant_id
+                    AND c.deleted_at IS NULL
+                    AND cb.deleted_at IS NULL
+            )
+        </if>
         <if test="letter != null and letter != ''">AND letter = #{letter}</if>
         <if test="seqMin != null">AND seq &gt;= #{seqMin}</if>
         <if test="seqMax != null">AND seq &lt;= #{seqMax}</if>
@@ -61,6 +73,18 @@
         SELECT COUNT(*) FROM brand
         WHERE deleted_at IS NULL
         <if test="name != null and name != ''">AND name LIKE #{name} ESCAPE '\'</if>
+        <if test="categoryName != null and categoryName != ''">
+            AND EXISTS (
+                SELECT 1
+                FROM category c
+                JOIN category_brand cb ON cb.category_id = c.id AND cb.tenant_id = c.tenant_id
+                WHERE c.name = #{categoryName}
+                    AND cb.brand_id = brand.id
+                    AND c.tenant_id = brand.tenant_id
+                    AND c.deleted_at IS NULL
+                    AND cb.deleted_at IS NULL
+            )
+        </if>
         <if test="letter != null and letter != ''">AND letter = #{letter}</if>
         <if test="seqMin != null">AND seq &gt;= #{seqMin}</if>
         <if test="seqMax != null">AND seq &lt;= #{seqMax}</if>

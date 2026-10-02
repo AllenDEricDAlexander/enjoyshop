@@ -130,6 +130,43 @@ class BrandControllerWebTest {
     }
 
     @Test
+    void list_with_categoryName_passes_the_outer_trimmed_value_to_manage() throws Exception {
+        when(brandManage.listBrands(any(), isNull(), isNull()))
+                .thenReturn(PageResultRecord.success(List.of(), 0L, 1, 500));
+
+        mockMvc.perform(get("/api/v1/brands").param("categoryName", "  mobile phone  "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.records").isArray())
+                .andExpect(jsonPath("$.records").isEmpty());
+
+        ArgumentCaptor<BrandPageQuery> captor = ArgumentCaptor.forClass(BrandPageQuery.class);
+        verify(brandManage).listBrands(captor.capture(), isNull(), isNull());
+        assertThat(captor.getValue().getCategoryName()).isEqualTo("mobile phone");
+    }
+
+    @Test
+    void list_with_blank_categoryName_is_400() throws Exception {
+        when(brandManage.listBrands(any(), isNull(), isNull()))
+                .thenReturn(PageResultRecord.success(List.of(), 0L, 1, 500));
+
+        mockMvc.perform(get("/api/v1/brands").param("categoryName", "   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(610101))
+                .andExpect(jsonPath("$.status").value("BRAND_REQUEST_INVALID"));
+    }
+
+    @Test
+    void list_with_overlong_categoryName_is_400() throws Exception {
+        when(brandManage.listBrands(any(), isNull(), isNull()))
+                .thenReturn(PageResultRecord.success(List.of(), 0L, 1, 500));
+
+        mockMvc.perform(get("/api/v1/brands").param("categoryName", "x".repeat(121)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(610101))
+                .andExpect(jsonPath("$.status").value("BRAND_REQUEST_INVALID"));
+    }
+
+    @Test
     void out_of_range_page_returns_empty_records() throws Exception {
         when(brandManage.listBrands(any(), isNull(), isNull()))
                 .thenReturn(PageResultRecord.success(List.of(), 3L, 999, 10));

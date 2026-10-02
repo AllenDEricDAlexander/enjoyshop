@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import top.egon.enjoyshop.goods.common.validation.ValidCategoryName;
 
 /**
  * Query-parameter carrier of {@code API-001}, bound as a model attribute.
@@ -19,6 +20,7 @@ import jakarta.validation.constraints.Size;
  * @param seqMax   inclusive upper bound of the ordering weight range
  * @param pageNo   page number starting at 1
  * @param pageSize page size, default 10 and hard maximum 500
+ * @param categoryName optional exact category filter
  */
 @Schema(description = "品牌集合查询参数；pageNo 与 pageSize 均缺失为全量模式（pageSize=500）")
 public record BrandListQuery(
@@ -27,5 +29,7 @@ public record BrandListQuery(
         @Schema(description = "seq 区间下界") @Min(0) Integer seqMin,
         @Schema(description = "seq 区间上界") @Min(0) Integer seqMax,
         @Schema(description = "页码，从 1 起") @Min(1) Integer pageNo,
-        @Schema(description = "页大小，缺省 10、上限 500") @Min(1) Integer pageSize) {
+        @Schema(description = "页大小，缺省 10、上限 500") @Min(1) Integer pageSize,
+        @Schema(description = "精确匹配的商品分类名称", maxLength = 120)
+        @ValidCategoryName(required = false) String categoryName) {
 }

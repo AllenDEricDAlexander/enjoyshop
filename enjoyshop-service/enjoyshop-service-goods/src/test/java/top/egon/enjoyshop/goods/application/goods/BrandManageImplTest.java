@@ -138,6 +138,27 @@ class BrandManageImplTest {
         assertThat(page.page().pageSize()).isEqualTo(10);
     }
 
+    @Test
+    void list_brands_passes_category_to_the_same_domain_query_for_list_and_count() {
+        MDC.put(OPERATOR_KEY, OPERATOR);
+        BrandBO row = brand();
+        when(domainService.listPage(any(BrandDomainQuery.class), eq(SEQ_MIN), eq(SEQ_MAX)))
+                .thenReturn(List.of(row));
+        when(domainService.countPage(any(BrandDomainQuery.class), eq(SEQ_MIN), eq(SEQ_MAX))).thenReturn(1L);
+        when(resultConverter.toTargetList(List.of(row))).thenReturn(List.of(brandResult()));
+
+        BrandPageQuery query = pageQuery(BRAND_NAME, 1, 10).setCategoryName("phones");
+        manage.listBrands(query, SEQ_MIN, SEQ_MAX);
+
+        ArgumentCaptor<BrandDomainQuery> listQuery = ArgumentCaptor.forClass(BrandDomainQuery.class);
+        ArgumentCaptor<BrandDomainQuery> countQuery = ArgumentCaptor.forClass(BrandDomainQuery.class);
+        verify(domainService).listPage(listQuery.capture(), eq(SEQ_MIN), eq(SEQ_MAX));
+        verify(domainService).countPage(countQuery.capture(), eq(SEQ_MIN), eq(SEQ_MAX));
+        assertThat(listQuery.getValue().getCategoryName()).isEqualTo("phones");
+        assertThat(countQuery.getValue().getCategoryName()).isEqualTo("phones");
+        assertThat(listQuery.getValue().getPage()).isEqualTo(query.getPage());
+    }
+
     private static BrandBO brand() {
         return BrandBO.builder().id(BRAND_ID).version(0L).name(BRAND_NAME)
                 .image("https://cdn/apple.png").letter("A").seq(10).build();

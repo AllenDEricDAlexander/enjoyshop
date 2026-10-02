@@ -96,6 +96,7 @@ public class BrandManageImpl implements BrandManage {
         BrandDomainQuery domainQuery = BrandDomainQuery.builder()
                 .name(query.getName())
                 .letter(query.getLetter())
+                .categoryName(query.getCategoryName())
                 .page(query.getPage())
                 .build();
         List<BrandResult> records = resultConverter.toTargetList(domainService.listPage(domainQuery, seqMin, seqMax));

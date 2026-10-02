@@ -9,6 +9,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.groups.ConvertGroup;
+import jakarta.validation.groups.Default;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.validation.annotation.Validated;
 import top.egon.cola.component.common.mybatis.autoconfigure.EgonColaMybatisPlusProperties;
 import top.egon.cola.component.common.mybatis.extension.EgonColaRepository;
+import top.egon.enjoyshop.goods.common.validation.GoodsCatalogQueryValidationGroup;
 
 @Slf4j
 @Validated
@@ -53,16 +56,21 @@ public class BrandRepository extends EgonColaRepository<BrandDAO, BrandPO> {
     }
 
     /** Catalog ordering; paging metadata is read from the normalized {@link BrandDomainQuery}. */
-    public List<BrandPO> selectBrandPage(@Valid @NotNull BrandDomainQuery query,
+    public List<BrandPO> selectBrandPage(
+                                        @Valid @NotNull @ConvertGroup(from = Default.class, to = GoodsCatalogQueryValidationGroup.class)
+                                        BrandDomainQuery query,
                                         @Min(0) Integer seqMin, @Min(0) Integer seqMax) {
-        return getBaseMapper().listBrandPage(likePrefix(query.getName()), query.getLetter(),
+        return getBaseMapper().listBrandPage(likePrefix(query.getName()), query.getCategoryName(), query.getLetter(),
                 seqMin, seqMax, query.getPage().pageSize(), query.getPage().offset());
     }
 
     /** Total rows for {@link #selectBrandPage} under exactly the same predicates. */
-    public long countBrandPage(@Valid @NotNull BrandDomainQuery query,
+    public long countBrandPage(
+                               @Valid @NotNull @ConvertGroup(from = Default.class, to = GoodsCatalogQueryValidationGroup.class)
+                               BrandDomainQuery query,
                                @Min(0) Integer seqMin, @Min(0) Integer seqMax) {
-        return getBaseMapper().countBrandPage(likePrefix(query.getName()), query.getLetter(), seqMin, seqMax);
+        return getBaseMapper().countBrandPage(likePrefix(query.getName()), query.getCategoryName(),
+                query.getLetter(), seqMin, seqMax);
     }
 
     /**

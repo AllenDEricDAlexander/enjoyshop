@@ -59,6 +59,7 @@ public interface BrandAdapterConverter extends BaseForwardConverter<BrandResult,
      */
     @Mapping(target = "name", source = "request.name", qualifiedByName = "nullIfBlank")
     @Mapping(target = "letter", source = "request.letter", qualifiedByName = "nullIfBlankUpper")
+    @Mapping(target = "categoryName", source = "request.categoryName", qualifiedByName = "trimCategoryName")
     @Mapping(target = "page", source = "page")
     BrandPageQuery toPageQuery(BrandListQuery request, PageQuery page);
 
@@ -86,5 +87,10 @@ public interface BrandAdapterConverter extends BaseForwardConverter<BrandResult,
     @Named("nullIfBlankUpper")
     static String nullIfBlankUpper(String raw) {
         return raw == null || raw.isBlank() ? null : raw.trim().toUpperCase(Locale.ROOT);
+    }
+
+    @Named("trimCategoryName")
+    static String trimCategoryName(String raw) {
+        return raw == null ? null : raw.trim();
     }
 }
