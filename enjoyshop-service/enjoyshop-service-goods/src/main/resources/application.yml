@@ -35,6 +35,10 @@ spring:
       shutdown:
         await-termination: true
         await-termination-period: ${SCHEDULING_AWAIT_TERMINATION:30s}
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: ${APP_TIME_ZONE:Asia/Shanghai}
@@ -131,6 +135,19 @@ app:
       enabled: false
       user-base-url: http://localhost:18081
       teaching-base-url: http://localhost:18082
+  web:
+    cors:
+      allowed-origins: ${GOODS_CORS_ALLOWED_ORIGINS:}
+  object-storage:
+    endpoint: ${OBJECT_STORAGE_ENDPOINT:}
+    region: ${OBJECT_STORAGE_REGION:us-east-1}
+    bucket: ${OBJECT_STORAGE_BUCKET:product-media}
+    path-style-access: ${OBJECT_STORAGE_PATH_STYLE_ACCESS:true}
+    public-url-base: ${OBJECT_STORAGE_PUBLIC_URL_BASE:}
+    access-key: ${OBJECT_STORAGE_ACCESS_KEY:}
+    secret-key: ${OBJECT_STORAGE_SECRET_KEY:}
+    api-call-attempt-timeout: 15s
+    api-call-timeout: 20s
 
 mybatis-plus:
   mapper-locations: classpath*:/mybatis/mapper/**/*.xml
@@ -250,6 +267,21 @@ egon:
               # tenant_id stays an ordinary column that the MP-SDJ tenant interceptor filters on.
               type: SINGLE
               data-source: master_data
+            category:
+              type: SINGLE
+              data-source: master_data
+            template:
+              type: SINGLE
+              data-source: master_data
+            spec:
+              type: SINGLE
+              data-source: master_data
+            para:
+              type: SINGLE
+              data-source: master_data
+            category_brand:
+              type: SINGLE
+              data-source: master_data
       id:
         enabled: true
         machine-id: ${EGON_ID_MACHINE_ID}
@@ -325,8 +357,8 @@ egon:
     platform:
       tianquan:
         shoubing:
-          enabled: false
-          register-filter: false
+          enabled: ${TIANQUAN_SHOUBING_ENABLED:false}
+          register-filter: ${TIANQUAN_SHOUBING_REGISTER_FILTER:false}
           issuer: ${TIANQUAN_SHOUBING_ISSUER:}
           jwk-set-uri: ${TIANQUAN_SHOUBING_JWK_SET_URI:}
           resource-server-id: ${TIANQUAN_SHOUBING_RESOURCE_SERVER_ID:}

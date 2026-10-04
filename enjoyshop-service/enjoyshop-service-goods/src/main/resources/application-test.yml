@@ -7,6 +7,10 @@ spring:
   autoconfigure:
     exclude:
       - org.redisson.spring.starter.RedissonAutoConfigurationV2
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
 management:
   health:
     rabbit:
@@ -16,6 +20,19 @@ management:
 
 
 app:
+  web:
+    cors:
+      allowed-origins: http://localhost:9100
+  object-storage:
+    endpoint: http://127.0.0.1:9000
+    region: us-east-1
+    bucket: test-product-media
+    path-style-access: true
+    public-url-base: https://images.example.test/products/
+    access-key: test-access-key
+    secret-key: test-secret-key
+    api-call-attempt-timeout: 15s
+    api-call-timeout: 20s
   integrations:
     rabbitmq:
       enabled: false
@@ -135,6 +152,21 @@ egon:
             brand:
               # DEC-114 option A: brand is single-tenant master data, so no sharding column;
               # tenant_id stays an ordinary column that the MP-SDJ tenant interceptor filters on.
+              type: SINGLE
+              data-source: master_data
+            category:
+              type: SINGLE
+              data-source: master_data
+            template:
+              type: SINGLE
+              data-source: master_data
+            spec:
+              type: SINGLE
+              data-source: master_data
+            para:
+              type: SINGLE
+              data-source: master_data
+            category_brand:
               type: SINGLE
               data-source: master_data
       id:

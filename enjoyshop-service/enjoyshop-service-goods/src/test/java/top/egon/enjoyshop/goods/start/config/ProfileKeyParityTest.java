@@ -39,17 +39,53 @@ class ProfileKeyParityTest {
 
     private static final String SHARDING_IMPORT = "egon-mybatis-plus-sharding.yml";
 
-    /** The six governance switches, plus the brand routing key, owned by REQ-004. */
+    /** The exact configuration paths owned by CORS, storage, upload and catalog routing. */
     private static final List<String> GOVERNANCE_KEYS = List.of(
             "egon.cola.component.tianshu.enabled",
             "egon.cola.component.tianshu.redis.enabled",
             "egon.cola.component.tianshu.registry.enabled",
             "egon.cola.component.tianshu.registry.http.enabled",
             "egon.cola.platform.tianquan.shoubing.enabled",
+            "egon.cola.platform.tianquan.shoubing.register-filter",
+            "egon.cola.platform.tianquan.shoubing.issuer",
+            "egon.cola.platform.tianquan.shoubing.jwk-set-uri",
+            "egon.cola.platform.tianquan.shoubing.resource-server-id",
+            "egon.cola.platform.tianquan.shoubing.resource-uri",
+            "egon.cola.platform.tianquan.shoubing.service-client.app-id",
+            "egon.cola.platform.tianquan.shoubing.service-client.registration-id",
             "egon.cola.component.yuheng.openapi.enabled",
-            "egon.cola.component.mybatis-plus.sharding.tables.brand");
+            "app.web.cors.allowed-origins",
+            "app.object-storage.endpoint",
+            "app.object-storage.region",
+            "app.object-storage.bucket",
+            "app.object-storage.path-style-access",
+            "app.object-storage.public-url-base",
+            "app.object-storage.access-key",
+            "app.object-storage.secret-key",
+            "app.object-storage.api-call-attempt-timeout",
+            "app.object-storage.api-call-timeout",
+            "spring.servlet.multipart.max-file-size",
+            "spring.servlet.multipart.max-request-size",
+            "egon.cola.component.mybatis-plus.sharding.tables.brand",
+            "egon.cola.component.mybatis-plus.sharding.tables.category.type",
+            "egon.cola.component.mybatis-plus.sharding.tables.category.data-source",
+            "egon.cola.component.mybatis-plus.sharding.tables.template.type",
+            "egon.cola.component.mybatis-plus.sharding.tables.template.data-source",
+            "egon.cola.component.mybatis-plus.sharding.tables.spec.type",
+            "egon.cola.component.mybatis-plus.sharding.tables.spec.data-source",
+            "egon.cola.component.mybatis-plus.sharding.tables.para.type",
+            "egon.cola.component.mybatis-plus.sharding.tables.para.data-source",
+            "egon.cola.component.mybatis-plus.sharding.tables.category_brand.type",
+            "egon.cola.component.mybatis-plus.sharding.tables.category_brand.data-source");
 
-    private static final List<String> GOVERNANCE_SWITCHES = GOVERNANCE_KEYS.subList(0, 6);
+    private static final List<String> GOVERNANCE_SWITCHES = List.of(
+            "egon.cola.component.tianshu.enabled",
+            "egon.cola.component.tianshu.redis.enabled",
+            "egon.cola.component.tianshu.registry.enabled",
+            "egon.cola.component.tianshu.registry.http.enabled",
+            "egon.cola.platform.tianquan.shoubing.enabled",
+            "egon.cola.platform.tianquan.shoubing.register-filter",
+            "egon.cola.component.yuheng.openapi.enabled");
 
     private static final Pattern PLACEHOLDER = Pattern.compile("^\\$\\{[^{}]*?:([^{}]*?)\\}$");
 
@@ -149,20 +185,27 @@ class ProfileKeyParityTest {
     }
 
     @Test
-    void brand_is_registered_in_every_tables_map() {
+    void catalog_tables_are_single_master_data_in_every_profile() {
         for (String profile : PROFILES) {
             Map<String, Object> root = load(profile);
             assertThat(flatten(root))
-                    .as("brand routing entry in %s", profile)
+                    .as("catalog routing entries in %s", profile)
                     .contains("egon.cola.component.mybatis-plus.sharding.tables.brand");
             assertThat(effectiveDefault(valueAt(root,
                     "egon.cola.component.mybatis-plus.sharding.tables.brand.type")))
-                    .as("brand is SINGLE master data (DEC-114) in %s", profile)
-                    .isEqualTo("SINGLE");
+                    .as("brand remains SINGLE master data in %s", profile).isEqualTo("SINGLE");
             assertThat(effectiveDefault(valueAt(root,
                     "egon.cola.component.mybatis-plus.sharding.tables.brand.data-source")))
-                    .as("brand lands on master_data in %s", profile)
-                    .isEqualTo("master_data");
+                    .as("brand remains on master_data in %s", profile).isEqualTo("master_data");
+            for (String table : List.of("category", "template", "spec", "para", "category_brand")) {
+                String prefix = "egon.cola.component.mybatis-plus.sharding.tables." + table;
+                assertThat(flatten(root)).as("%s in %s", table, profile)
+                        .contains(prefix + ".type", prefix + ".data-source");
+                assertThat(effectiveDefault(valueAt(root, prefix + ".type")))
+                        .as("%s is SINGLE master data in %s", table, profile).isEqualTo("SINGLE");
+                assertThat(effectiveDefault(valueAt(root, prefix + ".data-source")))
+                        .as("%s lands on master_data in %s", table, profile).isEqualTo("master_data");
+            }
         }
         // The base file imports this one, so its tables map is a sixth place brand must exist.
         assertThat(flatten(load(SHARDING_IMPORT)))

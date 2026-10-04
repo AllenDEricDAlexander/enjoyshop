@@ -56,6 +56,13 @@
                 <artifactId>protobuf-java</artifactId>
                 <version>${native.protobuf.version}</version>
             </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>2.55.6</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -101,6 +108,15 @@
         <dependency>
             <groupId>top.egon</groupId>
             <artifactId>egon-cola-component-common-id-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>top.egon</groupId>
+            <artifactId>egon-cola-tianquan-shoubing-starter</artifactId>
+            <version>5.4.1</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

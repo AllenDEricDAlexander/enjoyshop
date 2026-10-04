@@ -58,7 +58,8 @@ class NativeRpcConfigurationTest {
         var prod = properties("application-prod.yml");
         assertThat(prod.getProperty("egon.cola.component.rpc.tls.enabled")).isEqualTo("${RPC_TLS_ENABLED:true}");
         assertThat(prod.getProperty("egon.cola.component.tianshu.rpc.tls.enabled")).isEqualTo("${TIANSHU_RPC_TLS_ENABLED:true}");
-        assertThat(prod.getProperty("egon.cola.platform.tianquan.shoubing.register-filter")).isEqualTo("false");
+        assertThat(prod.getProperty("egon.cola.platform.tianquan.shoubing.register-filter"))
+                .isEqualTo("${TIANQUAN_SHOUBING_REGISTER_FILTER:false}");
     }
 
     @Test
