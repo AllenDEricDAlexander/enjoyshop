@@ -358,7 +358,7 @@ egon:
       tianquan:
         shoubing:
           enabled: ${TIANQUAN_SHOUBING_ENABLED:false}
-          register-filter: ${TIANQUAN_SHOUBING_REGISTER_FILTER:false}
+          register-filter: false
           issuer: ${TIANQUAN_SHOUBING_ISSUER:}
           jwk-set-uri: ${TIANQUAN_SHOUBING_JWK_SET_URI:}
           resource-server-id: ${TIANQUAN_SHOUBING_RESOURCE_SERVER_ID:}

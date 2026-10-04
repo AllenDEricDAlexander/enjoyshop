@@ -62,12 +62,6 @@ public class FileController {
                             @StringToClassMapItem(key = "code", value = String.class),
                             @StringToClassMapItem(key = "message", value = String.class)
                     }))),
-            @ApiResponse(responseCode = "403", description = "Shoubing USER 未获准访问该资源", content =
-            @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(type = "object",
-                    requiredProperties = {"code", "message"}, properties = {
-                            @StringToClassMapItem(key = "code", value = String.class),
-                            @StringToClassMapItem(key = "message", value = String.class)
-                    }))),
             @ApiResponse(responseCode = "413", description = "文件超过 10 MiB"),
             @ApiResponse(responseCode = "503", description = "对象存储不可用或写入结果未知")
     })

@@ -51,7 +51,6 @@ java @launch.args -Xmx3g -jar app.jar --server.port=9080
 | --- | --- | --- |
 | `GOODS_CORS_ALLOWED_ORIGINS` | `app.web.cors.allowed-origins` | 逗号分隔的前端来源精确白名单 |
 | `TIANQUAN_SHOUBING_ENABLED` | `egon.cola.component.platform.tianquan.shoubing.enabled` | 启用 Shoubing 验证 |
-| `TIANQUAN_SHOUBING_REGISTER_FILTER` | `egon.cola.component.platform.tianquan.shoubing.register-filter` | 注册 Shoubing Bearer 过滤器 |
 | `TIANQUAN_SHOUBING_ISSUER` | `egon.cola.component.platform.tianquan.shoubing.issuer` | Shoubing issuer URI |
 | `TIANQUAN_SHOUBING_JWK_SET_URI` | `egon.cola.component.platform.tianquan.shoubing.jwk-set-uri` | issuer 公钥集地址 |
 | `TIANQUAN_SHOUBING_RESOURCE_SERVER_ID` | `egon.cola.component.platform.tianquan.shoubing.resource-server-id` | 已登记的资源服务器标识 |
@@ -67,7 +66,14 @@ java @launch.args -Xmx3g -jar app.jar --server.port=9080
 | `APP_OBJECT_STORAGE_API_CALL_ATTEMPT_TIMEOUT` | `app.object-storage.api-call-attempt-timeout` | 单次请求超时，默认 `15s` |
 | `APP_OBJECT_STORAGE_API_CALL_TIMEOUT` | `app.object-storage.api-call-timeout` | 总请求超时，默认 `20s`，必须不小于单次超时 |
 
-生产或联调前由发布负责人确认 Shoubing issuer/JWK、共享 Redis、ACTIVE Resource 和 USER grant 已就绪；
+`egon.cola.platform.tianquan.shoubing.register-filter` 固定为 `false`：goods 将 Shoubing Filter 放进
+仅匹配文件上传 POST 的 Spring Security 链，避免 Servlet 外层过滤器设置的认证上下文被 Spring Security 清除。
+
+生产或联调前由发布负责人确认 Shoubing issuer/JWK、共享 Redis、ACTIVE Resource、USER_DELEGATION grant
+和 Jianshen application-entry 授权已就绪。Shoubing Starter 的 USER Token 校验是无状态身份校验；这些授权
+必须在上游授权/发放 Token 前完成，goods 上传接口本身不重新查询 Resource grant。缺失或无效 Bearer 在
+上传接口返回 Shoubing 401；授权流程拒绝发放 Token 时，由上游授权流程返回拒绝结果。
+
 对象存储 bucket 的公开 GET 策略及前端 CORS 来源也必须配置完成。上传后使用返回 URL 下载对象，并比较
 下载字节与上传图片。此发布检查不会由 `verify` 自动执行，也不要求应用启动时访问对象存储。
 

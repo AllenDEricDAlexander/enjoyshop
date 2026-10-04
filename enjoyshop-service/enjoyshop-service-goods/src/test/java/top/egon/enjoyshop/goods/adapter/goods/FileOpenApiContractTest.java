@@ -61,14 +61,13 @@ class FileOpenApiContractTest extends top.egon.enjoyshop.goods.support.Persisten
         assertThat(document.at("/components/securitySchemes/shoubingBearer/scheme").asText()).isEqualTo("bearer");
 
         JsonNode responses = operation.path("responses");
-        assertThat(responseCodes(responses)).containsExactlyInAnyOrder("201", "400", "401", "403", "413", "503");
+        assertThat(responseCodes(responses)).containsExactlyInAnyOrder("201", "400", "401", "413", "503");
         assertThat(responses.at("/201/headers").has("Location")).isTrue();
         assertThat(responses.at("/401/content/application~1json/schema/type").asText()).isEqualTo("object");
         assertThat(responses.at("/401/content/application~1json/schema/required"))
                 .extracting(JsonNode::toString)
                 .asString()
                 .contains("code", "message");
-        assertThat(responses.at("/403/content/application~1json/schema/type").asText()).isEqualTo("object");
     }
 
     private static List<String> responseCodes(JsonNode responses) {

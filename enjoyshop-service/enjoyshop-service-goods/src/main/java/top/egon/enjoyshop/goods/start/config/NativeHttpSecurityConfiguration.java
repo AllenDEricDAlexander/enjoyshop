@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -16,21 +17,62 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import top.egon.cola.platform.tianquan.shoubing.starter.security.IdpBearerAuthenticationFilter;
 
 /** Preserves existing public business routes after the OpenAPI starter adds Security. */
 @Configuration(value = "nativeHttpSecurityConfiguration", proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class NativeHttpSecurityConfiguration {
+
+    private static final String FILE_UPLOAD_PATH = "/api/v1/files";
+
     @Bean("applicationSecurityFilterChain")
     @Order(Ordered.LOWEST_PRECEDENCE)
     SecurityFilterChain applicationSecurityFilterChain(HttpSecurity http,
             @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource corsConfigurationSource,
             @Qualifier("jacksonObjectMapper") ObjectMapper objectMapper)
             throws Exception {
-        return http.csrf(csrf -> csrf.disable())
+        configureCommonSecurity(http, corsConfigurationSource, objectMapper);
+        return http.authorizeHttpRequests(authorize -> authorize
+                        .anyRequest().permitAll())
+                .build();
+    }
+
+    @Bean("fileUploadSecurityFilterChain")
+    @Order(Ordered.LOWEST_PRECEDENCE - 1)
+    SecurityFilterChain fileUploadSecurityFilterChain(HttpSecurity http,
+            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource corsConfigurationSource,
+            @Qualifier("jacksonObjectMapper") ObjectMapper objectMapper,
+            @Qualifier("idpBearerAuthenticationFilter")
+            ObjectProvider<IdpBearerAuthenticationFilter> shoubingFilterProvider,
+            @Value("${egon.cola.platform.tianquan.shoubing.register-filter:false}")
+            boolean servletFilterRegistration)
+            throws Exception {
+        if (servletFilterRegistration) {
+            throw new IllegalStateException(
+                    "Shoubing filter must be installed in the file-upload SecurityFilterChain");
+        }
+
+        http.securityMatcher(new AntPathRequestMatcher(FILE_UPLOAD_PATH, HttpMethod.POST.name()));
+        configureCommonSecurity(http, corsConfigurationSource, objectMapper);
+        IdpBearerAuthenticationFilter shoubingFilter = shoubingFilterProvider.getIfAvailable();
+        if (shoubingFilter != null) {
+            http.addFilterBefore(shoubingFilter, AnonymousAuthenticationFilter.class);
+        }
+        return http.authorizeHttpRequests(authorize -> authorize
+                        .anyRequest().authenticated())
+                .build();
+    }
+
+    private static void configureCommonSecurity(HttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource,
+            ObjectMapper objectMapper) throws Exception {
+        http.csrf(csrf -> csrf.disable())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
                 .logout(logout -> logout.disable())
@@ -41,11 +83,7 @@ public class NativeHttpSecurityConfiguration {
                     objectMapper.writeValue(response.getOutputStream(), Map.of(
                             "code", "AUTHORIZATION_HEADER_INVALID",
                             "message", "Tianquan-Shoubing authentication failed"));
-                }))
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.POST, "/api/v1/files").authenticated()
-                        .anyRequest().permitAll())
-                .build();
+                }));
     }
 
     @Bean("goodsCorsConfigurationSource")

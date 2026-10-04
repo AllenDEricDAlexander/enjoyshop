@@ -55,11 +55,15 @@ class NativeRpcConfigurationTest {
             assertThat(test.getProperty("egon.cola.component." + suffix)).as(suffix).isEqualTo("false");
         }
         assertThat(test.getProperty("egon.cola.platform.tianquan.shoubing.enabled")).isEqualTo("false");
+        for (String profile : new String[]{"application.yml", "application-dev.yml", "application-test.yml",
+                "application-prod.yml"}) {
+            assertThat(properties(profile).getProperty("egon.cola.platform.tianquan.shoubing.register-filter"))
+                    .as(profile + " Shoubing Servlet registration stays disabled")
+                    .isEqualTo("false");
+        }
         var prod = properties("application-prod.yml");
         assertThat(prod.getProperty("egon.cola.component.rpc.tls.enabled")).isEqualTo("${RPC_TLS_ENABLED:true}");
         assertThat(prod.getProperty("egon.cola.component.tianshu.rpc.tls.enabled")).isEqualTo("${TIANSHU_RPC_TLS_ENABLED:true}");
-        assertThat(prod.getProperty("egon.cola.platform.tianquan.shoubing.register-filter"))
-                .isEqualTo("${TIANQUAN_SHOUBING_REGISTER_FILTER:false}");
     }
 
     @Test
