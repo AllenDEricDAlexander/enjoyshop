@@ -1,5 +1,6 @@
 package top.egon.enjoyshop.goods.adapter.handler;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import top.egon.cola.component.common.core.exception.CommonException;
 import top.egon.cola.component.common.core.pojo.ResultRecord;
 import top.egon.enjoyshop.goods.adapter.goods.pojo.vo.FieldErrorsVO;
@@ -25,12 +27,12 @@ import top.egon.enjoyshop.goods.common.enums.GoodsErrorStatus;
 import java.util.List;
 
 /**
- * The single error boundary for the brand routes: every failure becomes a
+ * The single error boundary for the goods routes: every failure becomes a
  * {@link ResultRecord} envelope plus a safe HTTP status (Spec §9.2 error tables, §7.3.4).
  *
  * <p>The advice is package-scoped on purpose. The archetype's sample controllers keep their own
  * status semantics, and the light archetype's original {@code GlobalExceptionHandler} was removed by
- * {@code DEC-115}, so this class is the only advice on the brand chain and cannot double-wrap or
+ * {@code DEC-115}, so this class is the only advice on the goods routes and cannot double-wrap or
  * lose a mapping to a competing one.</p>
  *
  * <p>Nothing from a throwable reaches the client except the stable {@link GoodsErrorStatus} code,
@@ -48,10 +50,10 @@ public class BaseExceptionHandler {
     public ResponseEntity<ResultRecord<Void>> handleCommonException(CommonException exception) {
         HttpStatusCode status = httpStatus(exception.getCode());
         if (HttpStatus.INTERNAL_SERVER_ERROR.equals(status)) {
-            log.error("brand failure with an unmapped business code code={} status={}",
+            log.error("goods failure with an unmapped business code code={} status={}",
                     exception.getCode(), exception.getStatus(), exception);
         } else {
-            log.warn("brand business rejection code={} status={} http={}",
+            log.warn("goods business rejection code={} status={} http={}",
                     exception.getCode(), exception.getStatus(), status.value());
         }
         return ResponseEntity.status(status).body(ResultRecord.failure(exception));
@@ -62,12 +64,13 @@ public class BaseExceptionHandler {
      * {@code data.fieldErrors} so the envelope keys themselves never change.
      */
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
-    public ResponseEntity<ResultRecord<FieldErrorsVO>> handleBindFailure(BindException exception) {
+    public ResponseEntity<ResultRecord<FieldErrorsVO>> handleBindFailure(
+            BindException exception, HttpServletRequest request) {
         List<FieldViolationVO> violations = exception.getBindingResult().getFieldErrors().stream()
                 .map(BaseExceptionHandler::toViolation)
                 .toList();
-        log.warn("brand request rejected with {} field violation(s)", violations.size());
-        return fieldErrorsResponse(violations);
+        log.warn("goods request rejected with {} field violation(s)", violations.size());
+        return fieldErrorsResponse(violations, requestErrorStatus(request));
     }
 
     /**
@@ -76,12 +79,13 @@ public class BaseExceptionHandler {
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ResultRecord<FieldErrorsVO>> handleConstraintViolation(
-            ConstraintViolationException exception) {
+            ConstraintViolationException exception, HttpServletRequest request) {
         List<ConstraintViolation<?>> violations = exception.getConstraintViolations() == null
                 ? List.of()
                 : List.copyOf(exception.getConstraintViolations());
-        log.warn("brand request rejected with {} constraint violation(s)", violations.size());
-        return fieldErrorsResponse(violations.stream().map(BaseExceptionHandler::toViolation).toList());
+        log.warn("goods request rejected with {} constraint violation(s)", violations.size());
+        return fieldErrorsResponse(violations.stream().map(BaseExceptionHandler::toViolation).toList(),
+                requestErrorStatus(request));
     }
 
     /**
@@ -90,10 +94,17 @@ public class BaseExceptionHandler {
      */
     @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class,
             HttpMessageNotReadableException.class, IllegalArgumentException.class})
-    public ResponseEntity<ResultRecord<Void>> handleBadRequest(Exception exception) {
-        log.warn("brand request is not processable: {}", exception.getClass().getSimpleName());
+    public ResponseEntity<ResultRecord<Void>> handleBadRequest(Exception exception, HttpServletRequest request) {
+        log.warn("goods request is not processable: {}", exception.getClass().getSimpleName());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ResultRecord.failure(GoodsErrorStatus.BRAND_REQUEST_INVALID));
+                .body(ResultRecord.failure(requestErrorStatus(request)));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ResultRecord<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
+        log.warn("file upload rejected because the request exceeds the configured size limit");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ResultRecord.failure(GoodsErrorStatus.FILE_TOO_LARGE));
     }
 
     /**
@@ -102,7 +113,7 @@ public class BaseExceptionHandler {
      */
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<ResultRecord<Void>> handleUniqueConflict(DuplicateKeyException exception) {
-        log.warn("brand unique conflict on concurrent create");
+        log.warn("goods unique conflict on concurrent create");
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ResultRecord.failure(GoodsErrorStatus.BRAND_NAME_DUPLICATED));
     }
@@ -113,7 +124,7 @@ public class BaseExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ResultRecord<Void>> handleUnexpectedException(Exception exception) {
-        log.error("unexpected brand failure", exception);
+        log.error("unexpected goods failure", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ResultRecord.failure(GoodsErrorStatus.BRAND_INTERNAL_ERROR));
     }
@@ -124,17 +135,33 @@ public class BaseExceptionHandler {
      */
     private static HttpStatusCode httpStatus(int code) {
         return switch (code) {
-            case 610101 -> HttpStatus.BAD_REQUEST;
+            case 610101, 610106, 610110 -> HttpStatus.BAD_REQUEST;
             case 610102 -> HttpStatus.NOT_FOUND;
             case 610103, 610104 -> HttpStatus.CONFLICT;
             case 610105 -> HttpStatus.UNAUTHORIZED;
+            case 610107 -> HttpStatus.PAYLOAD_TOO_LARGE;
+            case 610108, 610109 -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }
 
-    private static ResponseEntity<ResultRecord<FieldErrorsVO>> fieldErrorsResponse(List<FieldViolationVO> violations) {
+    private static ResponseEntity<ResultRecord<FieldErrorsVO>> fieldErrorsResponse(
+            List<FieldViolationVO> violations, GoodsErrorStatus status) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResultRecord.result(
-                GoodsErrorStatus.BRAND_REQUEST_INVALID, false, new FieldErrorsVO(violations)));
+                status, false, new FieldErrorsVO(violations)));
+    }
+
+    private static GoodsErrorStatus requestErrorStatus(HttpServletRequest request) {
+        String requestUri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
+        if (path.equals("/api/v1/specs") || path.startsWith("/api/v1/specs/")) {
+            return GoodsErrorStatus.CATALOG_REQUEST_INVALID;
+        }
+        if (path.equals("/api/v1/files") || path.startsWith("/api/v1/files/")) {
+            return GoodsErrorStatus.FILE_REQUEST_INVALID;
+        }
+        return GoodsErrorStatus.BRAND_REQUEST_INVALID;
     }
 
     private static FieldViolationVO toViolation(FieldError error) {

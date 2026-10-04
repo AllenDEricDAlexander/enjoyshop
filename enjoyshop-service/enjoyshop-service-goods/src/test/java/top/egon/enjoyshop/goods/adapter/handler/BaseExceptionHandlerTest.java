@@ -1,13 +1,20 @@
 package top.egon.enjoyshop.goods.adapter.handler;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import top.egon.cola.component.common.core.exception.CommonException;
 import top.egon.enjoyshop.goods.adapter.filter.TraceIdFilter;
 import top.egon.enjoyshop.goods.adapter.goods.BrandController;
@@ -15,6 +22,7 @@ import top.egon.enjoyshop.goods.adapter.goods.pojo.convertor.BrandAdapterConvert
 import top.egon.enjoyshop.goods.application.goods.BrandManage;
 import top.egon.enjoyshop.goods.common.enums.GoodsErrorStatus;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.isOneOf;
@@ -113,5 +121,63 @@ class BaseExceptionHandlerTest {
                 .andExpect(content().string(not(containsString("IllegalStateException"))))
                 .andExpect(content().string(not(containsString("internal-db"))))
                 .andExpect(content().string(not(containsString("java.lang"))));
+    }
+
+    @Test
+    void invalid_spec_request_uses_the_catalog_error_code() throws Exception {
+        ResponseEntity<?> response = badRequestFor("/api/v1/specs/category/phones");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(body(response).path("code").asInt()).isEqualTo(610110);
+        assertThat(body(response).path("status").asText()).isEqualTo("CATALOG_REQUEST_INVALID");
+    }
+
+    @Test
+    void invalid_file_request_uses_the_file_error_code() throws Exception {
+        ResponseEntity<?> response = badRequestFor("/api/v1/files/upload");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(body(response).path("code").asInt()).isEqualTo(610106);
+        assertThat(body(response).path("status").asText()).isEqualTo("FILE_REQUEST_INVALID");
+    }
+
+    @Test
+    void oversized_file_uses_payload_too_large_and_file_error_code() throws Exception {
+        Method method = BaseExceptionHandler.class.getMethod("handleMaxUploadSizeExceeded",
+                MaxUploadSizeExceededException.class);
+        ResponseEntity<?> response = (ResponseEntity<?>) method.invoke(new BaseExceptionHandler(),
+                new MaxUploadSizeExceededException(10L));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(413);
+        assertThat(body(response).path("code").asInt()).isEqualTo(610107);
+        assertThat(body(response).path("status").asText()).isEqualTo("FILE_TOO_LARGE");
+    }
+
+    @Test
+    void storage_failures_are_service_unavailable_with_distinct_codes() throws Exception {
+        BaseExceptionHandler handler = new BaseExceptionHandler();
+        ResponseEntity<?> unavailable = handler.handleCommonException(
+                new CommonException(GoodsErrorStatus.FILE_STORAGE_UNAVAILABLE));
+        ResponseEntity<?> unknown = handler.handleCommonException(
+                new CommonException(GoodsErrorStatus.FILE_STORAGE_OUTCOME_UNKNOWN));
+
+        assertThat(unavailable.getStatusCode().value()).isEqualTo(503);
+        assertThat(body(unavailable).path("code").asInt()).isEqualTo(610108);
+        assertThat(body(unavailable).path("status").asText()).isEqualTo("FILE_STORAGE_UNAVAILABLE");
+        assertThat(unknown.getStatusCode().value()).isEqualTo(503);
+        assertThat(body(unknown).path("code").asInt()).isEqualTo(610109);
+        assertThat(body(unknown).path("status").asText()).isEqualTo("FILE_STORAGE_OUTCOME_UNKNOWN");
+    }
+
+    private static JsonNode body(ResponseEntity<?> response) {
+        return new ObjectMapper().valueToTree(response.getBody());
+    }
+
+    private static ResponseEntity<?> badRequestFor(String path) throws Exception {
+        HttpServletRequest request = new MockHttpServletRequest("GET", path);
+        Method method = BaseExceptionHandler.class.getMethod("handleBadRequest", Exception.class,
+                HttpServletRequest.class);
+        return (ResponseEntity<?>) method.invoke(new BaseExceptionHandler(),
+                new IllegalArgumentException("invalid request"), request);
     }
 }
