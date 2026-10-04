@@ -51,7 +51,7 @@ class LightPersistenceArchitectureTest {
 
         assertEquals(10, count(javaFiles, "PO.java"));
         assertEquals(10, count(javaFiles, "DAO.java"));
-        assertEquals(7, count(javaFiles, "DomainServiceImpl.java"));
+        assertEquals(8, count(javaFiles, "DomainServiceImpl.java"));
         assertFalse(source.contains("class ShardingDataSourceBootstrapper"));
         assertFalse(source.contains("YamlShardingSphereDataSourceFactory"));
         String pom = Files.readString(Path.of("pom.xml"), StandardCharsets.UTF_8);
