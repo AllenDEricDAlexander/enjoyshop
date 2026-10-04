@@ -37,6 +37,40 @@ java @launch.args -Xmx3g -jar app.jar --server.port=9080
 额外文件补充 `application.yml` 和选中的 `application-{profile}.yml`，不替换默认配置位置；
 要求文件必须存在时去掉 `optional:`。密码和密钥继续通过现有环境变量/secrets 注入，不写入 `run.*`。
 
+## 商品图片上传配置与发布检查
+
+上传接口为 `POST /api/v1/files`，使用 Shoubing USER Bearer 认证，接收名为 `file` 的单个
+`multipart/form-data` 文件。服务只接受实际内容为 JPEG 或 PNG、大小不超过 10 MiB 的图片；成功时返回
+`201 Created`，`Location` 与 `ResultRecord.data` 都是稳定的公开 HTTPS URL。客户端文件名和声明的 MIME
+类型不会用于对象键或存储类型。对象存储写入结果未知时不要自动重试，先人工确认远端对象状态。
+
+部署环境应通过环境变量或 Spring 外部配置提供下列值。实际密钥使用 Secret Manager、挂载密钥或
+`config/application-secrets.yml`，不要放进仓库：
+
+| 环境变量 | 对应属性 | 用途 |
+| --- | --- | --- |
+| `GOODS_CORS_ALLOWED_ORIGINS` | `app.web.cors.allowed-origins` | 逗号分隔的前端来源精确白名单 |
+| `TIANQUAN_SHOUBING_ENABLED` | `egon.cola.component.platform.tianquan.shoubing.enabled` | 启用 Shoubing 验证 |
+| `TIANQUAN_SHOUBING_REGISTER_FILTER` | `egon.cola.component.platform.tianquan.shoubing.register-filter` | 注册 Shoubing Bearer 过滤器 |
+| `TIANQUAN_SHOUBING_ISSUER` | `egon.cola.component.platform.tianquan.shoubing.issuer` | Shoubing issuer URI |
+| `TIANQUAN_SHOUBING_JWK_SET_URI` | `egon.cola.component.platform.tianquan.shoubing.jwk-set-uri` | issuer 公钥集地址 |
+| `TIANQUAN_SHOUBING_RESOURCE_SERVER_ID` | `egon.cola.component.platform.tianquan.shoubing.resource-server-id` | 已登记的资源服务器标识 |
+| `TIANQUAN_SHOUBING_RESOURCE_URI` | `egon.cola.component.platform.tianquan.shoubing.resource-uri` | 已激活的商品媒体 Resource URI |
+| `TIANQUAN_SHOUBING_SERVICE_APP_ID` | `egon.cola.component.platform.tianquan.shoubing.service-client.app-id` | Shoubing 服务端客户端标识（平台要求时配置） |
+| `OBJECT_STORAGE_ENDPOINT` | `app.object-storage.endpoint` | MinIO 或 Ceph RGW 的 S3 API 地址，不是公开下载地址 |
+| `OBJECT_STORAGE_REGION` | `app.object-storage.region` | S3 签名 Region，默认 `us-east-1` |
+| `OBJECT_STORAGE_BUCKET` | `app.object-storage.bucket` | 预先创建的图片 bucket，默认 `product-media` |
+| `OBJECT_STORAGE_PATH_STYLE_ACCESS` | `app.object-storage.path-style-access` | MinIO/Ceph 通常使用 `true` |
+| `OBJECT_STORAGE_PUBLIC_URL_BASE` | `app.object-storage.public-url-base` | bucket/object 可公开读取的 HTTPS URL 前缀 |
+| `OBJECT_STORAGE_ACCESS_KEY` | `app.object-storage.access-key` | S3 access key，密钥 |
+| `OBJECT_STORAGE_SECRET_KEY` | `app.object-storage.secret-key` | S3 secret key，密钥 |
+| `APP_OBJECT_STORAGE_API_CALL_ATTEMPT_TIMEOUT` | `app.object-storage.api-call-attempt-timeout` | 单次请求超时，默认 `15s` |
+| `APP_OBJECT_STORAGE_API_CALL_TIMEOUT` | `app.object-storage.api-call-timeout` | 总请求超时，默认 `20s`，必须不小于单次超时 |
+
+生产或联调前由发布负责人确认 Shoubing issuer/JWK、共享 Redis、ACTIVE Resource 和 USER grant 已就绪；
+对象存储 bucket 的公开 GET 策略及前端 CORS 来源也必须配置完成。上传后使用返回 URL 下载对象，并比较
+下载字节与上传图片。此发布检查不会由 `verify` 自动执行，也不要求应用启动时访问对象存储。
+
 ## 领域优先结构
 
 业务领域位于协议或技术细节之前，使 `user` 和 `teaching` 保持内聚，未来可以在不反转包顺序的情况下拆分为独立服务。

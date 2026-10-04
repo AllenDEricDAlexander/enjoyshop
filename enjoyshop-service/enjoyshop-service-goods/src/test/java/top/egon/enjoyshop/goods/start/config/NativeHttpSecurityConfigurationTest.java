@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -85,8 +86,9 @@ class NativeHttpSecurityConfigurationTest extends top.egon.enjoyshop.goods.suppo
                 .andExpect(jsonPath("$.message").value("Tianquan-Shoubing authentication failed"))
                 .andExpect(jsonPath("$.success").doesNotExist());
 
-        mockMvc.perform(post("/api/v1/files").session(authenticatedSession()))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(multipart("/api/v1/files").session(authenticatedSession()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(610106));
     }
 
     @Test
