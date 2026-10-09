@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Homepage offline release-input contract",
+  "description": "仅用于第一阶段参数准备。标准schema声明与check.sh的专属跨字段/凭据检查共同使用；通过不表示CRD兼容、环境可用或部署获准。环境记录的内部结构及资源存在性后续验收。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "clusterVersion",
+    "gatewayApiVersion",
+    "envoyGatewayVersion",
+    "envoyProxyImageDigest",
+    "appNamespace",
+    "platformNamespace",
+    "envoyNamespace",
+    "gatewayClassName",
+    "publicHostname",
+    "publicOrigin",
+    "issuerUri",
+    "oidcCallbackUri",
+    "tlsSecretName",
+    "edgeCaReference",
+    "edgeTlsServerName",
+    "edgeServiceName",
+    "edgeServicePort",
+    "staticServicePort",
+    "trustedProxyChain",
+    "clientIpMode",
+    "staticImageDigest",
+    "staticArtifactVersion",
+    "assetRetentionPolicy",
+    "envoyReplicas",
+    "staticMinReplicas",
+    "staticMaxReplicas",
+    "resourceRequests",
+    "resourceLimits",
+    "ingressLocalLimit",
+    "burst",
+    "bizPolicyRefs",
+    "quotaFailureMode",
+    "readyProbeContract",
+    "drainTimeout",
+    "terminationGracePeriod",
+    "requestTimeouts",
+    "redisHaEvidence",
+    "dbCapacityEvidence",
+    "platformAdmissionEvidence"
+  ],
+  "properties": {
+    "clusterVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "目标 Kubernetes 固定版本；不是本地 kubectl 版本。",
+      "not": {
+        "pattern": "[Ll][Aa][Tt][Ee][Ss][Tt]"
+      }
+    },
+    "gatewayApiVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "环境 owner 批准的 Gateway API 固定版本。",
+      "not": {
+        "pattern": "[Ll][Aa][Tt][Ee][Ss][Tt]"
+      }
+    },
+    "envoyGatewayVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Envoy Gateway 固定版本；兼容矩阵另行验收。",
+      "not": {
+        "pattern": "[Ll][Aa][Tt][Ee][Ss][Tt]"
+      }
+    },
+    "envoyProxyImageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Envoy 数据面完整不可变镜像引用，包含 @sha256:64位小写hex。",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9./:_-]*@sha256:[0-9a-f]{64}$"
+    },
+    "appNamespace": {
+      "type": "string",
+      "minLength": 1,
+      "description": "应用 namespace，合法 DNS label。",
+      "maxLength": 63,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+    },
+    "platformNamespace": {
+      "type": "string",
+      "minLength": 1,
+      "description": "平台 namespace，合法 DNS label。",
+      "maxLength": 63,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+    },
+    "envoyNamespace": {
+      "type": "string",
+      "minLength": 1,
+      "description": "实际 Envoy 数据面 namespace，合法 DNS label。",
+      "maxLength": 63,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+    },
+    "gatewayClassName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "已安装 GatewayClass 名称；本准备任务不创建控制器。",
+      "maxLength": 253,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$"
+    },
+    "publicHostname": {
+      "type": "string",
+      "minLength": 1,
+      "description": "实际站点 DNS 主机名，不能携带 scheme/port/path。",
+      "maxLength": 253,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$"
+    },
+    "publicOrigin": {
+      "type": "string",
+      "minLength": 1,
+      "description": "HTTPS 站点 origin；不带 query/fragment/凭据，host必须匹配publicHostname。",
+      "format": "uri",
+      "pattern": "^https://\\S+$"
+    },
+    "issuerUri": {
+      "type": "string",
+      "minLength": 1,
+      "description": "实际 HTTPS issuer URI；可带 issuer path，真实发现/准入另验。",
+      "format": "uri",
+      "pattern": "^https://\\S+$"
+    },
+    "oidcCallbackUri": {
+      "type": "string",
+      "minLength": 1,
+      "description": "实际 HTTPS OIDC callback；origin必须与publicOrigin一致。",
+      "format": "uri",
+      "pattern": "^https://\\S+$"
+    },
+    "tlsSecretName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "站点 TLS Secret 名称引用，不能提供私钥。",
+      "maxLength": 253,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$"
+    },
+    "edgeCaReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Edge CA 配置/Secret引用，不能提供CA/私钥原文；真实CA/SNI另验。"
+    },
+    "edgeTlsServerName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Edge TLS 校验证书的 DNS/SNI 名称，真实匹配另验。",
+      "maxLength": 253,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$"
+    },
+    "edgeServiceName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "实际 Edge ClusterIP Service 名称；不猜容器端口为Service端口。",
+      "maxLength": 63,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    },
+    "edgeServicePort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "实际 Edge Service TCP 端口，1..65535整数。"
+    },
+    "staticServicePort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "实际静态 Service TCP 端口，1..65535整数。"
+    },
+    "trustedProxyChain": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "minProperties": 1
+      },
+      "description": "有序可信代理逐跳记录；本阶段仅要求非空对象数组，不猜hop/CIDR。"
+    },
+    "clientIpMode": {
+      "type": "string",
+      "minLength": 1,
+      "description": "网络 owner 批准的实际源IP模式引用；不是自动采用单跳。"
+    },
+    "staticImageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "description": "真实静态镜像完整不可变引用；本工具不拉取或证明镜像存在。",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9./:_-]*@sha256:[0-9a-f]{64}$"
+    },
+    "staticArtifactVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "固定静态产物版本；禁止latest；旧hash保留另验。",
+      "not": {
+        "pattern": "[Ll][Aa][Tt][Ee][Ss][Tt]"
+      }
+    },
+    "assetRetentionPolicy": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "旧资源保留/不可覆盖合同的非空记录；结构细节由后续产物owner确定。"
+    },
+    "envoyReplicas": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "Envoy数据面副本数整数，至少2；不等于HA已证实。"
+    },
+    "staticMinReplicas": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "静态最小副本数整数，至少2。"
+    },
+    "staticMaxReplicas": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "静态最大副本数整数，至少2且不小于staticMinReplicas。"
+    },
+    "resourceRequests": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "资源requests非空记录；Quantity/容量/CPU指标留到真实清单验证。"
+    },
+    "resourceLimits": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "资源limits非空记录；不能凭非空对象证明容量合理。"
+    },
+    "ingressLocalLimit": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "入口实例本地请求额度正整数；不是全局配额。"
+    },
+    "burst": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "允许的突发额度非负整数；实际CRD字段/计量方式后续冻结。"
+    },
+    "bizPolicyRefs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "description": "Biz共享配额策略非空引用列表；不新增Envoy全局RLS。"
+    },
+    "quotaFailureMode": {
+      "type": "string",
+      "minLength": 1,
+      "description": "严格业务配额失败策略，固定DENY；不以LOCALFALLBACK宣称严格配额。",
+      "const": "DENY"
+    },
+    "readyProbeContract": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "实际角色Ready/liveness/端口合同非空记录；本阶段不定义或验证探针路径。"
+    },
+    "drainTimeout": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "期望drain预算，正整数秒；不修改现有服务实际timeout。"
+    },
+    "terminationGracePeriod": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "终止宽限正整数秒；须严格大于drainTimeout+requestTimeouts.inFlightSeconds。"
+    },
+    "requestTimeouts": {
+      "type": "object",
+      "required": [
+        "inFlightSeconds"
+      ],
+      "properties": {
+        "inFlightSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "请求预算记录；inFlightSeconds为最大在途正整数秒，其他环境细节后续核对。"
+    },
+    "redisHaEvidence": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Redis用途/HA/恢复证据引用，仅检查非空，不验证真实运行。"
+    },
+    "dbCapacityEvidence": {
+      "type": "string",
+      "minLength": 1,
+      "description": "DB回源容量证据引用，仅检查非空，不访问数据库。"
+    },
+    "platformAdmissionEvidence": {
+      "type": "string",
+      "minLength": 1,
+      "description": "平台准入/唯一Pod实例/Provider地址/TLS/租约证据引用，不读取token。"
+    }
+  },
+  "$comment": "check.sh另外验证：所有字符串非blank；未知core/null；嵌套明文凭据字段/私钥；HTTPS无凭据/fragment；origin/callback同源；max>=min；grace>drain+inFlight。Opaque记录内部非凭据字段尚未冻结，不宣称完整环境校验。"
+}
