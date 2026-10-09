@@ -41,7 +41,7 @@ class LightPersistenceArchitectureTest {
         assertFalse(source.contains("EgonColaIService"));
         assertFalse(source.contains("EgonColaServiceImpl"));
         assertTrue(source.contains("extends EgonColaRepository<"));
-        assertEquals(10, count(javaFiles, "Repository.java"));
+        assertEquals(13, count(javaFiles, "Repository.java"));
         for (Path file : javaFiles) {
             if (file.toString().contains("service/impl") && file.toString().endsWith("DomainServiceImpl.java")) {
                 assertFalse(read(file).contains("repo.dao"), "Business Service must compose repositories: " + file);
@@ -49,9 +49,14 @@ class LightPersistenceArchitectureTest {
             }
         }
 
-        assertEquals(10, count(javaFiles, "PO.java"));
-        assertEquals(10, count(javaFiles, "DAO.java"));
-        assertEquals(8, count(javaFiles, "DomainServiceImpl.java"));
+        assertEquals(13, count(javaFiles, "PO.java"));
+        assertEquals(13, count(javaFiles, "DAO.java"));
+        assertEquals(9, count(javaFiles, "DomainServiceImpl.java"));
+        for (String prefix : List.of("Spu", "Sku", "CategoryBrand")) {
+            assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "PO.java")));
+            assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "DAO.java")));
+            assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "Repository.java")));
+        }
         assertFalse(source.contains("class ShardingDataSourceBootstrapper"));
         assertFalse(source.contains("YamlShardingSphereDataSourceFactory"));
         String pom = Files.readString(Path.of("pom.xml"), StandardCharsets.UTF_8);

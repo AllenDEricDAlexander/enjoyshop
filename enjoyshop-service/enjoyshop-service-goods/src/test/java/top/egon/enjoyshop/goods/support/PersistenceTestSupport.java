@@ -19,7 +19,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /** Fast business tests use isolated logical tables; real PG/SS tests must not inherit this fixture. */
-@TestPropertySource(properties = {"egon.cola.component.mybatis-plus.ddl.enabled=false", "spring.sql.init.mode=never",
+@org.springframework.context.annotation.Import(ProductTestSecurityConfiguration.class)
+@TestPropertySource(properties = {"egon.cola.platform.tianquan.jianshen.enabled=false",
+        "egon.cola.platform.tianquan.jianshen.runtime.redis-enabled=false",
+        "egon.cola.platform.tianquan.jianshen.authorization.service-token.enabled=false","egon.cola.component.mybatis-plus.ddl.enabled=false", "spring.sql.init.mode=never",
         "egon.cola.component.id.machine-id=0"})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public abstract class PersistenceTestSupport {

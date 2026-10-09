@@ -14,7 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * The only writer of the MDC keys MP-SDJ reads ({@code tenantId} for the tenant interceptor,
+ * The legacy-route writer of the MDC keys MP-SDJ reads ({@code tenantId} for the tenant interceptor,
  * {@code userId} for audit fill and for the operator guard of Step 6).
  *
  * <p>The light archetype's own {@link RequestContextFilter} publishes a ThreadLocal view with
@@ -40,6 +40,13 @@ public class TenantContextFilter extends OncePerRequestFilter {
 
     static final String TENANT_MDC_KEY = "tenantId";
     static final String OPERATOR_MDC_KEY = "userId";
+
+    /** Product MDC comes exclusively from Shoubing's verified identity scope. */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return path.equals("/api/v1/products") || path.startsWith("/api/v1/products/");
+    }
 
     @Override
     protected void doFilterInternal(

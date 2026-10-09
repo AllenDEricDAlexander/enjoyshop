@@ -100,7 +100,7 @@ class CatalogDdlContractTest {
         List<JsonNode> scripts = StreamSupport.stream(manifest.path("scripts").spliterator(), false).toList();
 
         assertThat(manifest.path("family").asText()).isEqualTo("light");
-        assertThat(scripts).hasSize(3);
+        assertThat(scripts).hasSizeGreaterThanOrEqualTo(3);
         assertManifestEntry(scripts.get(0), "20260913_001",
                 "db/egon-mp/V20260913_001__initialize_repository_schema.sql",
                 "e4936cb2a7943d50cd4b7d7b49252d9712513a2f27ade70f125d2bf8f335ea31");

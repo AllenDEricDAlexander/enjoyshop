@@ -23,6 +23,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import top.egon.cola.platform.tianquan.shoubing.starter.security.IdpBearerAuthenticationFilter;
+import top.egon.cola.platform.tianquan.jianshen.starter.security.Rbac3BearerAuthenticationFilter;
 
 /** Preserves existing public business routes after the OpenAPI starter adds Security. */
 @Configuration(value = "nativeHttpSecurityConfiguration", proxyBeanMethods = false)
@@ -41,6 +42,25 @@ public class NativeHttpSecurityConfiguration {
         return http.authorizeHttpRequests(authorize -> authorize
                         .anyRequest().permitAll())
                 .build();
+    }
+
+    @Bean("productSecurityFilterChain")
+    @Order(Ordered.LOWEST_PRECEDENCE - 2)
+    SecurityFilterChain productSecurityFilterChain(HttpSecurity http,
+            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource cors,
+            @Qualifier("jacksonObjectMapper") ObjectMapper mapper,
+            @Qualifier("idpBearerAuthenticationFilter") IdpBearerAuthenticationFilter identity,
+            @Qualifier("rbac3BearerAuthenticationFilter") Rbac3BearerAuthenticationFilter permissions,
+            @Value("${egon.cola.platform.tianquan.shoubing.register-filter:false}") boolean idpRegistration,
+            @Value("${egon.cola.platform.tianquan.jianshen.register-filter:false}") boolean rbacRegistration) throws Exception {
+        if (idpRegistration || rbacRegistration) {
+            throw new IllegalStateException("Product authentication filters must only run inside the product SecurityFilterChain");
+        }
+        http.securityMatcher("/api/v1/products", "/api/v1/products/**");
+        configureCommonSecurity(http, cors, mapper);
+        http.addFilterBefore(permissions, AnonymousAuthenticationFilter.class)
+                .addFilterBefore(identity, Rbac3BearerAuthenticationFilter.class);
+        return http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated()).build();
     }
 
     @Bean("fileUploadSecurityFilterChain")
@@ -91,7 +111,7 @@ public class NativeHttpSecurityConfiguration {
             @Value("${app.web.cors.allowed-origins}") List<String> allowedOrigins) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(allowedOrigins);
-        configuration.setAllowedMethods(List.of(HttpMethod.GET.name(), HttpMethod.POST.name(), HttpMethod.OPTIONS.name()));
+        configuration.setAllowedMethods(List.of(HttpMethod.GET.name(), HttpMethod.POST.name(), HttpMethod.PUT.name(), HttpMethod.DELETE.name(), HttpMethod.OPTIONS.name()));
         configuration.setAllowedHeaders(List.of(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE));
         configuration.setExposedHeaders(List.of(HttpHeaders.LOCATION));
         configuration.setAllowCredentials(false);

@@ -9,9 +9,13 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
     @Bean("studentManagementOpenApi")
     OpenAPI studentManagementOpenApi() {
-        return new OpenAPI().info(new Info()
+        io.swagger.v3.oas.models.Components components = new io.swagger.v3.oas.models.Components();
+        components.addSecuritySchemes("bearerAuth", new io.swagger.v3.oas.models.security.SecurityScheme()
+                .type(io.swagger.v3.oas.models.security.SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT"));
+        return new OpenAPI().components(components).info(new Info()
                 .title("Student Management")
                 .description("Lite monolith domain architecture sample API")
                 .version("1.0.0"));
     }
+
 }

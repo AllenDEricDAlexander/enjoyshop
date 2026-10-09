@@ -1,0 +1,44 @@
+{
+  "configVersion": 1,
+  "projectType": "light",
+  "basePackage": "top.egon.enjoyshop.goods",
+  "domain": "goods",
+  "outputRoot": "enjoyshop-service/enjoyshop-service-goods",
+  "input": {
+    "mode": "manifest",
+    "resourceRoot": "enjoyshop-service/enjoyshop-service-goods/src/main/resources",
+    "manifest": "db/egon-mp/repository-manifest.json"
+  },
+  "existingTypeMappings": {},
+  "logicalTables": [
+    "sku"
+  ],
+  "artifacts": [
+    "domain-model"
+  ],
+  "fieldPolicies": {
+    "create": [],
+    "update": [],
+    "result": [],
+    "filter": [],
+    "sort": [
+      "spu_id",
+      "sn",
+      "name",
+      "price",
+      "num",
+      "alert_num",
+      "weight",
+      "image",
+      "images",
+      "spec",
+      "category_id",
+      "category_name",
+      "brand_name",
+      "sale_num",
+      "comment_num",
+      "status",
+      "deletion_kind"
+    ]
+  }
+}

@@ -210,5 +210,43 @@ class ProfileKeyParityTest {
         // The base file imports this one, so its tables map is a sixth place brand must exist.
         assertThat(flatten(load(SHARDING_IMPORT)))
                 .contains("egon.cola.component.mybatis-plus.sharding.tables.brand");
+    }    @Test
+    void productAuthorizationProfilesHaveIdenticalKeysAndBoundedCache() {
+        String prefix = "egon.cola.platform.tianquan.jianshen";
+        Set<String> expected = flatten(Map.of("jianshen", valueAt(load("application.yml"), prefix)));
+        for (String profile : PROFILES) {
+            Map<String, Object> root = load(profile);
+            assertThat(flatten(Map.of("jianshen", valueAt(root, prefix)))).isEqualTo(expected);
+            assertThat(valueAt(root, prefix + ".register-filter")).isEqualTo(false);
+            assertThat(valueAt(root, prefix + ".system-code")).isEqualTo("enjoyshop-goods");
+            assertThat(valueAt(root, prefix + ".authorization.cache-ttl")).isEqualTo("PT1S");
+            assertThat(valueAt(root, prefix + ".authorization.near-cache-ttl")).isEqualTo("PT0S");
+            assertThat(valueAt(root, prefix + ".authorization.maximum-jitter")).isEqualTo("PT0S");
+            assertThat(valueAt(root, prefix + ".authorization.fetch-timeout")).isEqualTo("PT1S");
+        }
     }
+    @Test
+    void jianshenProfilesBindToTheActualStarterProperties() throws Exception {
+        String prefix = "egon.cola.platform.tianquan.jianshen";
+        for (String profile : PROFILES) {
+            assertThat(valueAt(load(profile), prefix + ".runtime.database")).isNotNull();
+            assertThat(valueAt(load(profile), prefix + ".runtime.password-file")).isNotNull();
+            var environment = new org.springframework.core.env.StandardEnvironment();
+            for (var source : new org.springframework.boot.env.YamlPropertySourceLoader().load(profile,
+                    new org.springframework.core.io.ClassPathResource(profile))) {
+                environment.getPropertySources().addFirst(source);
+            }
+            environment.getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource("binding-fixture",
+                    Map.of(prefix + ".runtime.database", "6", prefix + ".runtime.password-file", "/not-read/example",
+                            prefix + ".authorization.service-token.scopes", "rbac3.snapshot.read")));
+            var properties = org.springframework.boot.context.properties.bind.Binder.get(environment).bind(prefix,
+                    org.springframework.boot.context.properties.bind.Bindable.of(top.egon.cola.platform.tianquan.jianshen.starter.autoconfigure.Rbac3StarterProperties.class)).get();
+            assertThat(properties.getRuntime().getDatabase()).isEqualTo(6);
+            assertThat(properties.getRuntime().getPasswordFile()).isEqualTo("/not-read/example");
+            assertThat(properties.getAuthorization().getServiceToken().getScopes()).isEqualTo("rbac3.snapshot.read");
+            assertThat(properties.getAuthorization().getCacheTtl()).isEqualTo(java.time.Duration.ofSeconds(1));
+            assertThat(properties.isRegisterFilter()).isFalse();
+        }
+    }
+
 }

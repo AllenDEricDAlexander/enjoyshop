@@ -256,3 +256,34 @@ Repository 通过 `@CacheConfig`、`@Cacheable`、`@CacheEvict` 等注解声明�
 ## 2026-09-22 Java / CQE 维护规范
 
 普通实体使用 class，仅不可变值对象可用 record。普通构造目标使用 @Builder，包含父类字段的构建使用兼容继承链的 @SuperBuilder。持久化枚举使用 @EnumValue，前端 JSON 使用 @JsonValue。必须复用 Components 和 Common MP Repository。校验基于原生/自定义约束、@Valid、@Validated 与分组，ValidationUtils 仅作通用手工触发。软删除业务唯一键必须组合业务列与 deleted_at，并验证有效行 NULL 语义。Event 经 Egon 事务 Outbox 或实际 MQ 投递，明确事务、失败和消费幂等。现有代码及旧 SQL 应按新规范逐项复核；本文档更新不代表已经迁移。
+
+
+## 商品管理生命周期与部署验收
+
+商品后端提供10个接口，使用已有Common Snowflake、MP Repository、具名Mapper与LOCAL事务；不包含前端、运费计算或图片删除。`spu`/`sku`/`category_brand`均为SINGLE/master_data，目录必须先存在同租户的品牌、三级分类与模板定义。
+
+| 请求 | 权限 | 结果 |
+| --- | --- | --- |
+| GET /api/v1/products，GET /{spuId} | enjoyshop:product:read | 有效/回收站列表、聚合详情 |
+| POST /api/v1/products，PUT /{spuId} | enjoyshop:product:write | 未审核/下架；编辑保留已有SKU ID，遗漏项记E |
+| PUT /{spuId}/approval | enjoyshop:product:audit | 已审核并上架 |
+| PUT /{spuId}/withdrawal、publication | enjoyshop:product:write | 下架、上架（后者必须已审核） |
+| DELETE /{spuId}?version=... | enjoyshop:product:write | 下架商品及当前SKU软删为P |
+| PUT /{spuId}/restoration | enjoyshop:product:write | 只还原P，保持未审核/下架；唯一键冲突全回滚 |
+| DELETE /{spuId}/purge?version=... | enjoyshop:product:purge | 同事务清理父项与全部P/E历史；缺失父项成功 |
+
+所有写操作除新增外提交父项当前`version`；状态PUT正文仅`{"version":0}`。旧版本409，包括重复目标；相同当前版本且状态已达目标不新增写。业务ID（含SKU、品牌、分类、模板）使用十进制字符串；价格为整数分，数量/重量为整数；禁止字符串数字/浮点价格或版本。禁用规格时恰好一个空规格SKU，启用时键值必须匹配模板定义。省略的可选集合默认为[]/{}，显式null仍按合同校验。货号trim且区分大小写，已有SPU/SKU货号不可修改。
+
+列表默认pageNo=1/pageSize=10，最大100；deleted=true查回收站。名称为转义后的字面包含查询，货号精确查询；详情SKU稳定ID升序；列表不加载SKU。未知/重复query、未知body字段、非canonical ID均400/610201。401为身份失败；403/610206为业务权限拒绝；404统一不存在或越租户；409为版本/状态/业务键冲突；503为ID/授权不可用。过滤器403/503使用原双字段code/message，业务错误使用现有ResultRecord；OpenAPI声明两类形状，data.fieldErrors保留完整嵌套路径。
+
+商品链为Shoubing→Jianshen→Anonymous，两个register-filter必须false；新链需要实际身份/授权beans，缺失启动失败。旧品牌/目录公开策略及上传仅身份策略保留。商品tenantId/userId来自Shoubing可信上下文和Jianshen绑定快照，忽略X-Tenant-Id/X-Actor-Id；不能把业务教学用户表或SCOPE权限当作商品审核/永删授权。
+
+部署必须启用并配置现有Shoubing USER验证及其SERVICE OAuth2 client，填写issuer/JWK、服务client注册与密钥文件；平台注册系统`enjoyshop-goods`、资源`enjoyshop.product`及4个独立权限。JIANSHEN_AUTHORIZATION_ENDPOINT配置平台基地址；JIANSHEN_REDIS_ADDRESS/DATABASE/PASSWORD_FILE配置授权专用Redis；JIANSHEN_RESOURCE_URI与service-token.scopes必须匹配平台snapshot SERVICE授权。配置实际字段是runtime.database/password-file、String scopes；不能用未消费的token-endpoint/client-id字段代替Shoubing凭据。
+
+授权cache-ttl=PT1S、near-cache/jitter=PT0S、fetch-timeout=PT1S；不承诺即时撤销或全链路1秒SLA。测试profile使用显式测试fakes，不能用于生产。API仅返回已提交事务，禁止失败后自动重试未知写结果。
+
+运行环境需包含支持lifecycle.statement-policies的MP Starter5.4.1产物（组件修正7084c44ce）和具备VerifiedTenantContextFilter的Shoubing5.4.1产物；版本号相同不代表旧缓存包含能力。精确statement策略默认失败关闭：回收查询须ID/父键/分页约束，restore绑定原tombstone并仅清声明字段，purge需回收父项/version/FOR UPDATE/同组事务；不得关闭guard或忽略商品表。
+
+新增DDL为V20261009_001__initialize_product_schema.sql，manifest追加校验和。旧版本不可变；只在MASTER_DATA建表，SHARD分支无商品表。默认应用测试不执行部署DDL；上线前由操作者核对目录数据/无冲突业务键、schema权限与分布式DDL记录，执行发布前备份和版本状态核查。新版本失败依据既有MP分布式状态重试，不能改旧SQL/checksum或使用repair。首次部署前回退代码与配置；执行DDL后保持新增表/历史，回退需前向兼容方案，不自动DROP。
+
+执行验证使用模块目录 `./mvnw -o -B -ntp verify`，新测试为隔离H2/MockMvc与静态合同，未证明真实PostgreSQL/ShardingSphere或平台联调。发布前还需用户控制的PG并发新增/审核CAS/重复微秒软删/恢复键冲突/事务回滚/索引EXPLAIN、跨租户与平台4权限/资源绑定、Redis异常/超时/撤销验收，以及已有图片上传TEST-114。不会自动启动应用、数据库或容器。

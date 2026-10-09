@@ -54,6 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(controllers = BrandController.class)
 @ContextConfiguration(classes = {
+        top.egon.enjoyshop.goods.support.ProductTestSecurityConfiguration.class,
         top.egon.enjoyshop.goods.start.config.NativeHttpSecurityConfiguration.class,
         BrandController.class,
         BrandAdapterConverterImpl.class,

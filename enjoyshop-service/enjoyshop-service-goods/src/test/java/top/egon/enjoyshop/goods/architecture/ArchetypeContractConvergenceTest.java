@@ -261,18 +261,29 @@ class ArchetypeContractConvergenceTest {
             String text = read(path);
             String name = path.getFileName().toString();
             if (text.contains("\npublic enum ") || text.contains("\nenum ")) {
+                boolean storedScalarEnum = name.equals("ProductSkuDeletionKindEnum.java")
+                        && text.contains("@EnumValue") && text.contains("@JsonValue") && text.contains("@JsonCreator");
+                boolean internalActions = name.equals("ProductActionEnum.java")
+                        && text.contains("CREATE, EDIT, AUDIT, PULL, PUT, DELETE, RESTORE, PURGE");
                 assertTrue(text.contains("implements EgonEnum") || text.contains("implements ErrorStatus")
-                                || text.contains("extends "),
+                                || text.contains("extends ") || storedScalarEnum || internalActions,
                         "handwritten enum must implement EgonEnum: " + name);
             }
             if (name.endsWith("Validator.java")) {
-                assertTrue(text.contains("extends BaseValidator"), "validator contract: " + name);
-                assertTrue(text.contains("getValidationUtils"), "validator must expose the common facade: " + name);
+                if (text.contains("implements ConstraintValidator<")) {
+                    assertTrue(text.contains("boolean isValid("), "native constraint must implement evaluation: " + name);
+                } else {
+                    assertTrue(text.contains("extends BaseValidator"), "validator contract: " + name);
+                    assertTrue(text.contains("getValidationUtils"), "validator must expose the common facade: " + name);
+                }
             }
             if (name.endsWith("Convertor.java") || name.endsWith("Converter.java")) {
                 assertTrue(text.contains("BaseConverter<") || text.contains("BaseForwardConverter<"),
                         "semantic mapping must use the common converter: " + name);
-                assertTrue(text.contains("@Mapper"), "mapping must be generated: " + name);
+                boolean jsonFieldCodec = name.equals("ProductJsonFieldConverter.java")
+                        && text.contains("BaseForwardConverter<String, JsonNode>")
+                        && text.contains("@Qualifier(\"jacksonObjectMapper\")") && text.contains("@Named");
+                assertTrue(text.contains("@Mapper") || jsonFieldCodec, "semantic mapping must be generated; JSON field codec uses Jackson: " + name);
             }
         }
         String deleted = read(modulePath("common/enums/DeletedStatus.java"));

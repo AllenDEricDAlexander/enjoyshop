@@ -44,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(controllers = BrandController.class)
 @ContextConfiguration(classes = {
+        top.egon.enjoyshop.goods.support.ProductTestSecurityConfiguration.class,
         top.egon.enjoyshop.goods.start.config.NativeHttpSecurityConfiguration.class,
         BrandController.class,
         BrandAdapterConverterImpl.class,
@@ -179,5 +180,14 @@ class BaseExceptionHandlerTest {
                 HttpServletRequest.class);
         return (ResponseEntity<?>) method.invoke(new BaseExceptionHandler(),
                 new IllegalArgumentException("invalid request"), request);
+    }    @Test
+    void productClockFailureUsesSafeIdUnavailableEnvelope() {
+        BaseExceptionHandler handler = new BaseExceptionHandler();
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/products");
+        var response = handler.handleCommonException(new top.egon.cola.component.common.id.exception.ClockMovedBackwardException(1, 2, 1, 0), request);
+        assertThat(response.getStatusCode().value()).isEqualTo(503);
+        assertThat(response.getBody().code()).isEqualTo(610207);
+        assertThat(response.getBody().message()).doesNotContain("machineId", "currentTimeMillis");
     }
+
 }

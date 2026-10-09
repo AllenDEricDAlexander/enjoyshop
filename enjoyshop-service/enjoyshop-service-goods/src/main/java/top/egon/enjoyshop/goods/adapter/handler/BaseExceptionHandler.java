@@ -47,6 +47,19 @@ public class BaseExceptionHandler {
      * directly and only the HTTP status is derived by the code table.
      */
     @ExceptionHandler(CommonException.class)
+    public ResponseEntity<ResultRecord<Void>> handleCommonException(CommonException exception, HttpServletRequest request) {
+        if (!productPath(request)) { return handleCommonException(exception); }
+        if (idFailure(exception)) { return productError(GoodsErrorStatus.PRODUCT_ID_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE); }
+        if (exception.getCode() == 401000) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResultRecord.failure(exception));
+        }
+        GoodsErrorStatus error = java.util.Arrays.stream(GoodsErrorStatus.values())
+                .filter(value -> value.getCode() == exception.getCode() && value.name().startsWith("PRODUCT_"))
+                .findFirst().orElse(GoodsErrorStatus.PRODUCT_INTERNAL_ERROR);
+        return productError(error, httpStatus(error.getCode()));
+    }
+
+    /** Kept for existing programmatic callers with the original goods semantics. */
     public ResponseEntity<ResultRecord<Void>> handleCommonException(CommonException exception) {
         HttpStatusCode status = httpStatus(exception.getCode());
         if (HttpStatus.INTERNAL_SERVER_ERROR.equals(status)) {
@@ -84,7 +97,7 @@ public class BaseExceptionHandler {
                 ? List.of()
                 : List.copyOf(exception.getConstraintViolations());
         log.warn("goods request rejected with {} constraint violation(s)", violations.size());
-        return fieldErrorsResponse(violations.stream().map(BaseExceptionHandler::toViolation).toList(),
+        return fieldErrorsResponse(violations.stream().map(value -> productPath(request) ? toProductViolation(value) : toViolation(value)).toList(),
                 requestErrorStatus(request));
     }
 
@@ -112,7 +125,8 @@ public class BaseExceptionHandler {
      * with 610103, and a concurrent insert that slips past it lands here with the same payload.
      */
     @ExceptionHandler(DuplicateKeyException.class)
-    public ResponseEntity<ResultRecord<Void>> handleUniqueConflict(DuplicateKeyException exception) {
+    public ResponseEntity<ResultRecord<Void>> handleUniqueConflict(DuplicateKeyException exception, HttpServletRequest request) {
+        if (productPath(request)) { return productError(GoodsErrorStatus.PRODUCT_BUSINESS_KEY_CONFLICT, HttpStatus.CONFLICT); }
         log.warn("goods unique conflict on concurrent create");
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ResultRecord.failure(GoodsErrorStatus.BRAND_NAME_DUPLICATED));
@@ -123,7 +137,21 @@ public class BaseExceptionHandler {
      * 610199 envelope.
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ResultRecord<Void>> handleUnexpectedException(Exception exception) {
+    public ResponseEntity<ResultRecord<Void>> handleUnexpectedException(Exception exception, HttpServletRequest request) {
+        if (productPath(request)) {
+            if (idFailure(exception)) { return productError(GoodsErrorStatus.PRODUCT_ID_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE); }
+            if (exception instanceof org.springframework.security.access.AccessDeniedException
+                    || exception instanceof top.egon.cola.platform.tianquan.jianshen.starter.authorization.DefaultAuthorizationService.AuthorizationDeniedException
+                    || exception instanceof top.egon.cola.platform.tianquan.jianshen.starter.client.Rbac3AuthorizationClient.AuthorizationDeniedException) {
+                return productError(GoodsErrorStatus.PRODUCT_FORBIDDEN, HttpStatus.FORBIDDEN);
+            }
+            if (exception instanceof top.egon.cola.platform.tianquan.jianshen.starter.authorization.AuthorizationService.RuntimeUnavailableException
+                    || exception instanceof top.egon.cola.platform.tianquan.jianshen.starter.client.Rbac3AuthorizationClient.AuthorizationUnavailableException) {
+                return productError(GoodsErrorStatus.PRODUCT_AUTHORIZATION_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE);
+            }
+            log.error("unexpected product failure", exception);
+            return productError(GoodsErrorStatus.PRODUCT_INTERNAL_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
         log.error("unexpected goods failure", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ResultRecord.failure(GoodsErrorStatus.BRAND_INTERNAL_ERROR));
@@ -135,12 +163,13 @@ public class BaseExceptionHandler {
      */
     private static HttpStatusCode httpStatus(int code) {
         return switch (code) {
-            case 610101, 610106, 610110 -> HttpStatus.BAD_REQUEST;
-            case 610102 -> HttpStatus.NOT_FOUND;
-            case 610103, 610104 -> HttpStatus.CONFLICT;
+            case 610101, 610106, 610110, 610201 -> HttpStatus.BAD_REQUEST;
+            case 610102, 610202 -> HttpStatus.NOT_FOUND;
+            case 610103, 610104, 610203, 610204, 610205 -> HttpStatus.CONFLICT;
             case 610105 -> HttpStatus.UNAUTHORIZED;
+            case 610206 -> HttpStatus.FORBIDDEN;
             case 610107 -> HttpStatus.PAYLOAD_TOO_LARGE;
-            case 610108, 610109 -> HttpStatus.SERVICE_UNAVAILABLE;
+            case 610108, 610109, 610207, 610208 -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }
@@ -155,6 +184,7 @@ public class BaseExceptionHandler {
         String requestUri = request.getRequestURI();
         String contextPath = request.getContextPath();
         String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
+        if (productPath(request)) { return GoodsErrorStatus.PRODUCT_REQUEST_INVALID; }
         if (path.equals("/api/v1/specs") || path.startsWith("/api/v1/specs/")) {
             return GoodsErrorStatus.CATALOG_REQUEST_INVALID;
         }
@@ -192,4 +222,32 @@ public class BaseExceptionHandler {
                 violation.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName(),
                 violation.getMessage());
     }
+    private static boolean productPath(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return path.equals("/api/v1/products") || path.startsWith("/api/v1/products/");
+    }
+
+    private static ResponseEntity<ResultRecord<Void>> productError(GoodsErrorStatus error, HttpStatusCode status) {
+        return ResponseEntity.status(status).body(ResultRecord.failure(error));
+    }
+
+    private static boolean idFailure(Throwable failure) {
+        for (int depth = 0; failure != null && depth < 16; depth++, failure = failure.getCause()) {
+            if (failure instanceof top.egon.cola.component.common.id.exception.ClockMovedBackwardException
+                    || failure instanceof top.egon.cola.component.common.id.exception.IdGenerationInterruptedException
+                    || failure instanceof top.egon.cola.component.common.id.exception.SnowflakeTimestampOutOfRangeException) { return true; }
+        }
+        return false;
+    }
+
+    private static FieldViolationVO toProductViolation(ConstraintViolation<?> violation) {
+        String path = violation.getPropertyPath().toString();
+        // Native method validation prefixes method/parameter; keep the entire nested field suffix.
+        String[] prefix = path.split("\\.", 3);
+        if (prefix.length == 3) { path = prefix[2]; }
+        else if (prefix.length == 2) { path = prefix[1]; }
+        return new FieldViolationVO(path,
+                violation.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName(), violation.getMessage());
+    }
+
 }

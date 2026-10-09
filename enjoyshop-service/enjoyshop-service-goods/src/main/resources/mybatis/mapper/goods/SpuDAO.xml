@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO">
+    <resultMap id="SpuPOResultMap" type="top.egon.enjoyshop.goods.infrastructure.goods.po.SpuPO">
+        <id column="id" property="id"/>
+        <result column="sn" property="sn"/>
+        <result column="name" property="name"/>
+        <result column="caption" property="caption"/>
+        <result column="brand_id" property="brandId"/>
+        <result column="category1_id" property="category1Id"/>
+        <result column="category2_id" property="category2Id"/>
+        <result column="category3_id" property="category3Id"/>
+        <result column="template_id" property="templateId"/>
+        <result column="freight_id" property="freightId"/>
+        <result column="image" property="image"/>
+        <result column="images" property="images"/>
+        <result column="sale_service" property="saleService"/>
+        <result column="introduction" property="introduction"/>
+        <result column="spec_items" property="specItems"/>
+        <result column="para_items" property="paraItems"/>
+        <result column="sale_num" property="saleNum"/>
+        <result column="comment_num" property="commentNum"/>
+        <result column="status" property="status"/>
+        <result column="is_marketable" property="isMarketable"/>
+        <result column="is_enable_spec" property="isEnableSpec"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="create_user_id" property="createUserId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_user_id" property="updateUserId"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="deleted_at" property="deletedAt"/>
+        <result column="version" property="version"/>
+    </resultMap>
+    <sql id="columns">id, tenant_id, create_user_id, create_time, update_user_id, update_time, deleted_at, version, sn, name, caption, brand_id, category1_id, category2_id, category3_id, template_id, freight_id, image, images, sale_service, introduction, spec_items, para_items, sale_num, comment_num, status, is_marketable, is_enable_spec</sql>
+    <select id="selectActiveById" resultMap="SpuPOResultMap">
+        SELECT <include refid="columns"/> FROM spu WHERE id = #{id} AND deleted_at IS NULL
+    </select>
+    <select id="selectActiveByIds" resultMap="SpuPOResultMap">
+        SELECT <include refid="columns"/> FROM spu WHERE deleted_at IS NULL
+        <choose>
+            <when test="ids != null and ids.size() &gt; 0">
+                AND id IN
+                <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </when>
+            <otherwise>AND 1 = 0</otherwise>
+        </choose>
+    </select>
+
+    <update id="deleteVersionedById">
+        UPDATE spu SET status = '0', is_marketable = FALSE,
+            deleted_at = GREATEST((CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+                COALESCE((SELECT MAX(history.deleted_at) + INTERVAL '0.000001' SECOND FROM spu history
+                          WHERE history.tenant_id = #{et.tenantId} AND history.sn = #{et.sn}),
+                         (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'))), update_user_id = #{et.updateUserId}, update_time = #{et.updateTime}, version = version + 1
+        WHERE id = #{et.id} AND tenant_id = #{et.tenantId} AND deleted_at IS NULL
+          AND version = #{MP_OPTLOCK_VERSION_ORIGINAL} AND sn = #{et.sn} AND is_marketable = FALSE
+    </update>
+    <update id="restoreVersionedById">
+        UPDATE spu SET deleted_at = NULL,
+            update_user_id = #{et.updateUserId}, update_time = #{et.updateTime}, version = version + 1
+        WHERE id = #{et.id} AND tenant_id = #{et.tenantId} AND deleted_at = #{et.deletedAt}
+          AND version = #{MP_OPTLOCK_VERSION_ORIGINAL}
+    </update>
+    <sql id="lifecycleFilters">
+        tenant_id = #{tenantId}
+        <choose><when test="query.deleted">AND deleted_at IS NOT NULL</when><otherwise>AND deleted_at IS NULL</otherwise></choose>
+        <if test="query.sn != null">AND sn = #{query.sn}</if>
+        <if test="query.name != null">AND name LIKE #{escapedName} ESCAPE '\'</if>
+        <if test="query.status != null">AND status = #{query.status}</if>
+        <if test="query.isMarketable != null">AND is_marketable = #{query.isMarketable}</if>
+    </sql>
+    <select id="selectByLifecycle" resultMap="SpuPOResultMap">
+        SELECT <include refid="columns"/> FROM spu WHERE id = #{query.id} AND <include refid="lifecycleFilters"/>
+    </select>
+    <select id="lockByLifecycle" resultMap="SpuPOResultMap">
+        SELECT <include refid="columns"/> FROM spu WHERE id = #{query.id} AND <include refid="lifecycleFilters"/> FOR UPDATE
+    </select>
+    <select id="selectPage" resultMap="SpuPOResultMap">
+        SELECT <include refid="columns"/> FROM spu WHERE <include refid="lifecycleFilters"/>
+        ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*) FROM spu WHERE <include refid="lifecycleFilters"/>
+    </select>
+    <select id="lockCategories" resultType="long">
+        SELECT id FROM category WHERE tenant_id = #{tenantId} AND deleted_at IS NULL AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY id FOR UPDATE
+    </select>
+    <select id="lockBrand" resultType="long">
+        SELECT id FROM brand WHERE id = #{id} AND tenant_id = #{tenantId} AND deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="lockTemplate" resultType="long">
+        SELECT id FROM template WHERE id = #{id} AND tenant_id = #{tenantId} AND deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="selectCatalogReferences" resultType="top.egon.enjoyshop.goods.domain.goods.CatalogReferenceBO">
+        SELECT b.id AS brand_id, b.name AS brand_name, c1.id AS category1_id, c2.id AS category2_id,
+               c3.id AS category3_id, c3.name AS category_name, t.id AS template_id
+        FROM brand b
+        JOIN category c1 ON c1.id = #{value.category1Id} AND c1.parent_id IS NULL
+        JOIN category c2 ON c2.id = #{value.category2Id} AND c2.parent_id = c1.id
+        JOIN category c3 ON c3.id = #{value.category3Id} AND c3.parent_id = c2.id
+        JOIN template t ON t.id = c3.template_id AND t.id = #{value.templateId}
+        WHERE b.id = #{value.brandId} AND b.tenant_id = #{tenantId}
+          AND c1.tenant_id = #{tenantId} AND c2.tenant_id = #{tenantId} AND c3.tenant_id = #{tenantId} AND t.tenant_id = #{tenantId}
+          AND b.deleted_at IS NULL AND c1.deleted_at IS NULL AND c2.deleted_at IS NULL AND c3.deleted_at IS NULL AND t.deleted_at IS NULL
+    </select>
+    <select id="selectSpecDefinitions" resultType="top.egon.enjoyshop.goods.infrastructure.goods.po.SpecPO">
+        SELECT * FROM spec WHERE template_id = #{id} AND tenant_id = #{tenantId} AND deleted_at IS NULL ORDER BY seq, id
+    </select>
+    <select id="selectParaDefinitions" resultType="top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO$ParaDefinitionBO">
+        SELECT name, options FROM para WHERE template_id = #{id} AND tenant_id = #{tenantId} AND deleted_at IS NULL ORDER BY seq, id
+    </select>
+    <delete id="purgeDeletedById">
+        DELETE FROM spu WHERE id = #{id} AND tenant_id = #{tenantId} AND version = #{version} AND deleted_at = #{deletedAt}
+    </delete>
+</mapper>

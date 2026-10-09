@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(SchoolClassController.class)
 @ContextConfiguration(classes = {
+        top.egon.enjoyshop.goods.support.ProductTestSecurityConfiguration.class,
         top.egon.enjoyshop.goods.start.config.NativeHttpSecurityConfiguration.class,
         SchoolClassController.class,
         TeachingAdapterConvertorImpl.class,

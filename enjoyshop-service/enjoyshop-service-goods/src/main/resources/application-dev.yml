@@ -60,6 +60,52 @@ egon:
           wait-time: PT0.5S
           lease-time: PT10S
       mybatis-plus:
+        lifecycle:
+          restore-statements:
+            - top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.restoreVersionedById
+            - top.egon.enjoyshop.goods.infrastructure.goods.dao.SkuDAO.restoreVersionedById
+          statement-policies:
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.selectByLifecycle]":
+              scope: ID
+              table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.lockByLifecycle]":
+              scope: ID
+              table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.selectPage]":
+              scope: PAGE
+              table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.countPage]":
+              scope: COUNT
+              table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.purgeDeletedById]":
+              scope: PURGE_ID
+              table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.deleteVersionedById]":
+              scope: MONOTONE_DELETE
+              table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.restoreVersionedById]":
+              scope: RESTORE
+              table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SkuDAO.selectBySpuLifecycle]":
+              scope: PARENT
+              table: sku
+              key-column: spu_id
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SkuDAO.selectAllBySpuForPurge]":
+              scope: ALL_PARENT
+              table: sku
+              key-column: spu_id
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SkuDAO.purgeAllBySpu]":
+              scope: PURGE_PARENT
+              table: sku
+              key-column: spu_id
+              parent-table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SkuDAO.deleteVersionedById]":
+              scope: MONOTONE_DELETE
+              table: sku
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SkuDAO.restoreVersionedById]":
+              scope: RESTORE
+              table: sku
+              restore-null-columns: [deletion_kind]
         enabled: true
         tenant-id:
           mdc-key: tenantId
@@ -90,7 +136,9 @@ egon:
           topology-ready-timeout: PT60S
         local-write-guard:
           enabled: true
-          allowed-root-statements: {}
+          allowed-root-statements:
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.purgeDeletedById]": id
+            "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SkuDAO.purgeAllBySpu]": spu_id
         sharding:
           enabled: true
           mode: ${APP_DATASOURCE_MODE:SHARDING}
@@ -119,6 +167,12 @@ egon:
               username: ${LIGHT_SHARDING_USERNAME}
               password: "${LIGHT_SHARDING_PASSWORD:}"
           tables:
+            spu:
+              type: SINGLE
+              data-source: master_data
+            sku:
+              type: SINGLE
+              data-source: master_data
             users:
               type: SINGLE
               data-source: master_data
@@ -237,6 +291,26 @@ egon:
           publish-to-tianshu: ${OPENAPI_PUBLISH_TO_TIANSHU:false}
     platform:
       tianquan:
+        jianshen:
+          enabled: true
+          register-filter: false
+          system-code: enjoyshop-goods
+          runtime:
+            redis-enabled: true
+            redis-address: ${JIANSHEN_REDIS_ADDRESS:redis://127.0.0.1:6379}
+            database: ${JIANSHEN_REDIS_DATABASE:0}
+            password-file: ${JIANSHEN_REDIS_PASSWORD_FILE:}
+            timeout: PT2S
+          authorization:
+            endpoint: ${JIANSHEN_AUTHORIZATION_ENDPOINT:http://127.0.0.1:8082}
+            cache-ttl: PT1S
+            maximum-jitter: PT0S
+            near-cache-ttl: PT0S
+            fetch-timeout: PT1S
+            service-token:
+              enabled: true
+              resource-uri: ${JIANSHEN_RESOURCE_URI:rbac3://authorization}
+              scopes: rbac3.snapshot.read
         shoubing:
           enabled: ${TIANQUAN_SHOUBING_ENABLED:false}
           register-filter: false
