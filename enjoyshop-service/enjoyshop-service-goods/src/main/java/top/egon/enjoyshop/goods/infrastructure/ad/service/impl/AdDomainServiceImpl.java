@@ -2,6 +2,7 @@ package top.egon.enjoyshop.goods.infrastructure.ad.service.impl;
 
 import java.util.List;
 import java.util.Objects;
+import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,7 +23,6 @@ import top.egon.enjoyshop.goods.domain.ad.AdDomainService;
 import top.egon.enjoyshop.goods.infrastructure.ad.converter.AdPersistenceConverter;
 import top.egon.enjoyshop.goods.infrastructure.ad.po.AdPO;
 import top.egon.enjoyshop.goods.infrastructure.ad.repo.AdRepository;
-import top.egon.enjoyshop.goods.infrastructure.config.AdProperties;
 
 @Service("adDomainService")
 @Validated
@@ -38,9 +38,6 @@ public class AdDomainServiceImpl implements AdDomainService {
 
     @Qualifier("egonColaValidationUtils")
     private final ValidationUtils validation;
-
-    @Qualifier("app.ad-top.egon.enjoyshop.goods.infrastructure.config.AdProperties")
-    private final AdProperties properties;
 
     @Override
     @Transactional
@@ -59,6 +56,7 @@ public class AdDomainServiceImpl implements AdDomainService {
         if (!repository.save(row)) {
             throw versionConflict();
         }
+        repository.registerAdvertisementEviction(value.getPosition());
         log.info("created advertisement id={}", row.getId());
         return converter.toTarget(row);
     }
@@ -74,10 +72,12 @@ public class AdDomainServiceImpl implements AdDomainService {
             throw new CommonException(GoodsErrorStatus.AD_NOT_FOUND);
         }
         requireVersion(current, value.getVersion());
+        String oldPosition = current.getPosition();
         converter.mergeForUpdate(value, current);
         if (!repository.updateById(current)) {
             throw versionConflict();
         }
+        repository.registerAdvertisementEviction(oldPosition, value.getPosition());
         log.info("replaced advertisement id={} version={}", current.getId(), current.getVersion());
         return converter.toTarget(current);
     }
@@ -95,6 +95,7 @@ public class AdDomainServiceImpl implements AdDomainService {
         if (!repository.removeById(current)) {
             throw versionConflict();
         }
+        repository.registerAdvertisementEviction(current.getPosition());
         log.info("deleted advertisement id={} version={}", current.getId(), current.getVersion());
         return true;
     }
@@ -124,16 +125,18 @@ public class AdDomainServiceImpl implements AdDomainService {
     }
 
     @Override
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     @Validated(AdValidationGroup.PublicRead.class)
     public List<AdBO> publishedCandidates(@jakarta.validation.Valid AdDomainQuery query) {
         AdDomainQuery scoped = bindTenant(query);
         validation.validate(scoped, AdValidationGroup.PublicRead.class);
-        List<AdPO> rows = repository.selectCandidates(scoped, properties.getCandidateLimit() + 1);
-        if (rows.size() > properties.getCandidateLimit()) {
-            throw new CommonException(GoodsErrorStatus.AD_DATA_LIMIT);
+        List<AdBO> candidates = repository.cachedCandidates(scoped).stream().map(converter::toTarget).toList();
+        try {
+            candidates.forEach(candidate -> validation.validate(candidate, AdValidationGroup.PublicRead.class));
+        } catch (ConstraintViolationException invalidStoredRow) {
+            log.warn("advertisement public candidate failed business validation");
+            throw new CommonException(GoodsErrorStatus.AD_DATA_INVALID, invalidStoredRow);
         }
-        return rows.stream().map(converter::toTarget).toList();
+        return candidates;
     }
 
     private static AdDomainQuery bindTenant(AdDomainQuery query) {

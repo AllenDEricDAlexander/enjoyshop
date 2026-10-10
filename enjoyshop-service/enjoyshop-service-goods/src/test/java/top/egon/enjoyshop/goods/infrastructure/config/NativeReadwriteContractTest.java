@@ -11,6 +11,7 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ClassPathResource;
 import top.egon.cola.component.common.core.validation.ValidationUtils;
+import top.egon.cola.component.common.cache.autoconfigure.EgonColaCacheProperties;
 import top.egon.cola.component.common.mybatis.routing.EgonColaPhysicalTargetBO;
 import top.egon.cola.component.common.mybatis.routing.EgonColaRoutingProfileBO;
 import top.egon.cola.component.common.mybatis.sharding.EgonColaShardingProperties;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +68,20 @@ class NativeReadwriteContractTest {
             assertThat(properties.getTables()).as("legacy STRATEGY table declarations in %s", profile).isEmpty();
             assertThat(roleBindings(properties.getDataSources())).as("physical roles in %s", profile)
                     .isEqualTo(EXPECTED_PHYSICAL_ROLES);
+        }
+    }
+
+    @Test
+    void adRegionHasBoundedIndependentTtlsInEveryProfile() {
+        for (String profile : PROFILES) {
+            EgonColaCacheProperties properties = bindCacheProfile(profile);
+            EgonColaCacheProperties.RegionTtl region = properties.getRegions().get("AdCandidates");
+            assertThat(region).as("AdCandidates region in %s", profile).isNotNull();
+            assertThat(region.getL1Expire()).isEqualTo(Duration.ofSeconds(10));
+            assertThat(region.getL1Jitter()).isEqualTo(Duration.ofSeconds(2));
+            assertThat(region.getL2Expire()).isEqualTo(Duration.ofSeconds(30));
+            assertThat(region.getL2Jitter()).isEqualTo(Duration.ofSeconds(5));
+            assertThat(region.getNullExpire()).isNull();
         }
     }
 
@@ -144,6 +160,22 @@ class NativeReadwriteContractTest {
         return Binder.get(environment)
                 .bind(SHARDING_PREFIX, Bindable.of(EgonColaShardingProperties.class))
                 .orElseThrow(() -> new IllegalStateException("sharding properties did not bind for " + profile));
+    }
+
+    private static EgonColaCacheProperties bindCacheProfile(String profile) {
+        StandardEnvironment environment = new StandardEnvironment();
+        try {
+            for (var source : new YamlPropertySourceLoader().load(profile, new ClassPathResource(profile))) {
+                environment.getPropertySources().addFirst(source);
+            }
+        } catch (IOException failure) {
+            throw new IllegalStateException("cannot load cache profile " + profile, failure);
+        }
+        environment.getPropertySources().addFirst(new MapPropertySource("cache-profile-support",
+                Map.of("spring.application.name", "cache-contract")));
+        return Binder.get(environment)
+                .bind("egon.cola.component.cache", Bindable.of(EgonColaCacheProperties.class))
+                .orElseThrow(() -> new IllegalStateException("cache properties did not bind for " + profile));
     }
 
     private static EgonColaShardingProperties routingProperties() {

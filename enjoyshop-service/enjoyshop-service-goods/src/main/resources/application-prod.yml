@@ -67,6 +67,12 @@ egon:
           l2-expire: PT1H
           l2-jitter: PT20M
           null-expire: PT60S
+        regions:
+          AdCandidates:
+            l1-expire: PT10S
+            l1-jitter: PT2S
+            l2-expire: PT30S
+            l2-jitter: PT5S
         batch:
           max-keys: 1000
         lock:

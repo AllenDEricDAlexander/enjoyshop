@@ -40,7 +40,6 @@ import top.egon.enjoyshop.goods.domain.ad.AdStatusEnum;
 import top.egon.enjoyshop.goods.infrastructure.ad.converter.AdPersistenceConverter;
 import top.egon.enjoyshop.goods.infrastructure.ad.po.AdPO;
 import top.egon.enjoyshop.goods.infrastructure.ad.repo.AdRepository;
-import top.egon.enjoyshop.goods.infrastructure.config.AdProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -207,7 +206,7 @@ class AdManageTest {
         Validator validator = mock(Validator.class);
         doReturn(Set.of()).when(validator).validate(any(), any(Class[].class));
         return new top.egon.enjoyshop.goods.infrastructure.ad.service.impl.AdDomainServiceImpl(
-                repository, converter, new ValidationUtils(validator), AdProperties.builder().build());
+                repository, converter, new ValidationUtils(validator));
     }
 
     private static AuthorizationDecision decision(String code, Decision decision) {

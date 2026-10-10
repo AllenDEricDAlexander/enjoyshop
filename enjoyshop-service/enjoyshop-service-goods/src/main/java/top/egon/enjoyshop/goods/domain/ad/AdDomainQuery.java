@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
@@ -30,6 +31,7 @@ public class AdDomainQuery {
     @Positive(groups = {AdValidationGroup.Detail.class, AdValidationGroup.Page.class, AdValidationGroup.PublicRead.class})
     private Long tenantId;
 
+    @NotBlank(groups = AdValidationGroup.PublicRead.class)
     @ValidAdPosition(groups = {AdValidationGroup.Page.class, AdValidationGroup.PublicRead.class})
     private String position;
 

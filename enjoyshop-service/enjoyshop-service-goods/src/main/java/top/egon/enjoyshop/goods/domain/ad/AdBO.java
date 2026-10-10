@@ -24,7 +24,11 @@ import top.egon.enjoyshop.goods.common.validation.ValidAdWindow;
 @AllArgsConstructor
 @Accessors(chain = true)
 @Builder
-@ValidAdWindow(groups = {AdValidationGroup.Create.class, AdValidationGroup.Update.class})
+@ValidAdWindow(groups = {
+        AdValidationGroup.Create.class,
+        AdValidationGroup.Update.class,
+        AdValidationGroup.PublicRead.class
+})
 public class AdBO implements AdWindowValidator.AdWindowInput {
 
     @Positive(groups = {AdValidationGroup.Update.class, AdValidationGroup.Delete.class, AdValidationGroup.Detail.class})
