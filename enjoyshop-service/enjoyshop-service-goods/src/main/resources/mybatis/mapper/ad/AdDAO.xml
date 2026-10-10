@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="top.egon.enjoyshop.goods.infrastructure.ad.dao.AdDAO">
+    <resultMap id="AdPOResultMap" type="top.egon.enjoyshop.goods.infrastructure.ad.po.AdPO">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="position" property="position"/>
+        <result column="image_url" property="imageUrl"/>
+        <result column="target_url" property="targetUrl"/>
+        <result column="status" property="status"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="create_user_id" property="createUserId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_user_id" property="updateUserId"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="deleted_at" property="deletedAt"/>
+        <result column="version" property="version"/>
+    </resultMap>
+    <sql id="columns">id, tenant_id, create_user_id, create_time, update_user_id, update_time, deleted_at, version, name, position, image_url, target_url, status, start_time, end_time, sort_order</sql>
+    <select id="selectActiveById" resultMap="AdPOResultMap">
+        SELECT <include refid="columns"/> FROM ad WHERE id = #{id} AND deleted_at IS NULL
+    </select>
+    <select id="selectActiveByIds" resultMap="AdPOResultMap">
+        SELECT <include refid="columns"/> FROM ad WHERE deleted_at IS NULL
+        <choose>
+            <when test="ids != null and ids.size() &gt; 0">
+                AND id IN
+                <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </when>
+            <otherwise>AND 1 = 0</otherwise>
+        </choose>
+    </select>
+    <update id="deleteVersionedById">
+        UPDATE ad
+        SET deleted_at = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+            update_user_id = #{et.updateUserId},
+            update_time = #{et.updateTime},
+            version = version + 1
+        WHERE id = #{et.id} AND deleted_at IS NULL AND version = #{MP_OPTLOCK_VERSION_ORIGINAL}
+    </update>
+    <select id="selectByQuery" resultMap="AdPOResultMap">
+        SELECT <include refid="columns"/> FROM ad
+        WHERE deleted_at IS NULL
+        <if test="query.position != null">AND position = #{query.position}</if>
+        <if test="query.status != null">AND status = #{query.status}</if>
+        ORDER BY id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+</mapper>

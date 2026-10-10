@@ -46,7 +46,7 @@ class NativeReadwriteContractTest {
     private static final List<String> LOGICAL_GROUPS = List.of("master_data", "shard_0", "shard_1");
     private static final Set<String> MASTER_DATA_TABLES = Set.of(
             "spu", "sku", "users", "roles", "permissions", "user_roles", "role_permissions",
-            "courses", "brand", "category", "template", "spec", "para", "category_brand");
+            "courses", "brand", "category", "template", "spec", "para", "category_brand", "ad");
     private static final Map<String, String> EXPECTED_PHYSICAL_ROLES = Map.of(
             "master_data_primary", "master_data/PRIMARY",
             "master_data_replica_0", "master_data/REPLICA",

@@ -41,7 +41,7 @@ class LightPersistenceArchitectureTest {
         assertFalse(source.contains("EgonColaIService"));
         assertFalse(source.contains("EgonColaServiceImpl"));
         assertTrue(source.contains("extends EgonColaRepository<"));
-        assertEquals(13, count(javaFiles, "Repository.java"));
+        assertEquals(14, count(javaFiles, "Repository.java"));
         for (Path file : javaFiles) {
             if (file.toString().contains("service/impl") && file.toString().endsWith("DomainServiceImpl.java")) {
                 assertFalse(read(file).contains("repo.dao"), "Business Service must compose repositories: " + file);
@@ -49,10 +49,10 @@ class LightPersistenceArchitectureTest {
             }
         }
 
-        assertEquals(13, count(javaFiles, "PO.java"));
-        assertEquals(13, count(javaFiles, "DAO.java"));
+        assertEquals(14, count(javaFiles, "PO.java"));
+        assertEquals(14, count(javaFiles, "DAO.java"));
         assertEquals(9, count(javaFiles, "DomainServiceImpl.java"));
-        for (String prefix : List.of("Spu", "Sku", "CategoryBrand")) {
+        for (String prefix : List.of("Spu", "Sku", "CategoryBrand", "Ad")) {
             assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "PO.java")));
             assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "DAO.java")));
             assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "Repository.java")));
@@ -92,6 +92,7 @@ class LightPersistenceArchitectureTest {
         assertTrue(nativeRules.contains("transactionalReadQueryStrategy: PRIMARY"));
         assertTrue(nativeRules.contains("!SINGLE"));
         assertTrue(nativeRules.contains("master_data.public.brand"));
+        assertTrue(nativeRules.contains("master_data.public.ad"));
         assertTrue(nativeRules.contains("!SHARDING"));
         assertTrue(nativeRules.contains("school_classes_0"));
         assertTrue(nativeRules.contains("school_classes_1"));

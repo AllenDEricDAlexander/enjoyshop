@@ -20,6 +20,11 @@
       "version": "20261009_001",
       "path": "db/egon-mp/V20261009_001__initialize_product_schema.sql",
       "sha256": "db319455730c9d20b96401bbd7cdf0f488b23f8fa4efa15ccc4e1985e167c24c"
+    },
+    {
+      "version": "20261010_001",
+      "path": "db/egon-mp/V20261010_001__initialize_advertisement_cdc.sql",
+      "sha256": "f66d690bc2587fed033d7e7dd94121b18266e1f6a795acc477f38c6ba8392efa"
     }
   ]
 }

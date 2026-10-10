@@ -24,6 +24,7 @@ rules:
     tables:
       - master_data.public.spu
       - master_data.public.sku
+      - master_data.public.ad
       - master_data.public.users
       - master_data.public.roles
       - master_data.public.permissions

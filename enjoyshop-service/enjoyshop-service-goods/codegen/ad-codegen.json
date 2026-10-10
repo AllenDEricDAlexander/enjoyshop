@@ -1,0 +1,74 @@
+{
+  "configVersion": 1,
+  "projectType": "light",
+  "basePackage": "top.egon.enjoyshop.goods",
+  "domain": "ad",
+  "outputRoot": "enjoyshop-service/enjoyshop-service-goods",
+  "input": {
+    "mode": "schema",
+    "resourceRoot": "enjoyshop-service/enjoyshop-service-goods/codegen",
+    "schemaFiles": [
+      "ad-create.sql"
+    ]
+  },
+  "logicalTables": [
+    "ad"
+  ],
+  "artifacts": [
+    "po",
+    "dao",
+    "mapper-xml",
+    "repo",
+    "domain-model",
+    "domain-query"
+  ],
+  "existingTypeMappings": {},
+  "fieldPolicies": {
+    "create": [
+      "name",
+      "position",
+      "image_url",
+      "target_url",
+      "status",
+      "start_time",
+      "end_time",
+      "sort_order"
+    ],
+    "update": [
+      "name",
+      "position",
+      "image_url",
+      "target_url",
+      "status",
+      "start_time",
+      "end_time",
+      "sort_order"
+    ],
+    "result": [
+      "name",
+      "position",
+      "image_url",
+      "target_url",
+      "status",
+      "start_time",
+      "end_time",
+      "sort_order"
+    ],
+    "filter": [
+      "position",
+      "status"
+    ],
+    "sort": [
+      "id",
+      "sort_order"
+    ]
+  },
+  "apiContract": {
+    "existingErrorMapper": "top.egon.enjoyshop.goods.common.error.GoodsErrorMapper",
+    "contextSymbol": "top.egon.enjoyshop.goods.adapter.filter.RequestContext",
+    "basePath": "/api/v1/ads"
+  },
+  "events": {
+    "enabled": false
+  }
+}
