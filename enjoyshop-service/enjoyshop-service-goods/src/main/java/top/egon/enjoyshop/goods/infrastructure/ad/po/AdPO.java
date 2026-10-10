@@ -3,7 +3,6 @@ package top.egon.enjoyshop.goods.infrastructure.ad.po;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
@@ -14,6 +13,7 @@ import lombok.experimental.Accessors;
 import lombok.experimental.SuperBuilder;
 import top.egon.cola.component.common.mybatis.model.EgonModel;
 import top.egon.cola.component.common.mybatis.model.EgonColaModelValidationGroups;
+import top.egon.enjoyshop.goods.domain.ad.AdStatusEnum;
 
 @Data
 @NoArgsConstructor
@@ -39,11 +39,10 @@ public class AdPO extends EgonModel<AdPO> {
     @Size(max = 1024, groups = {EgonColaModelValidationGroups.Insert.class, EgonColaModelValidationGroups.Update.class, EgonColaModelValidationGroups.Query.class, EgonColaModelValidationGroups.Persisted.class})
     @TableField("target_url")
     private String targetUrl;
-    @NotNull(groups = {EgonColaModelValidationGroups.Persisted.class})
-    @Size(max = 1, groups = {EgonColaModelValidationGroups.Insert.class, EgonColaModelValidationGroups.Update.class, EgonColaModelValidationGroups.Query.class, EgonColaModelValidationGroups.Persisted.class})
-    @Pattern(regexp = "^(?:0|1)$", groups = {EgonColaModelValidationGroups.Insert.class, EgonColaModelValidationGroups.Update.class, EgonColaModelValidationGroups.Query.class, EgonColaModelValidationGroups.Persisted.class})
+    @NotNull(groups = {EgonColaModelValidationGroups.Insert.class, EgonColaModelValidationGroups.Update.class,
+            EgonColaModelValidationGroups.Query.class, EgonColaModelValidationGroups.Persisted.class})
     @TableField("status")
-    private String status;
+    private AdStatusEnum status;
     @NotNull(groups = {EgonColaModelValidationGroups.Insert.class, EgonColaModelValidationGroups.Persisted.class})
     @TableField("start_time")
     private Instant startTime;

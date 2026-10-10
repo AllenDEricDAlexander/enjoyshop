@@ -15,14 +15,19 @@
     "ad"
   ],
   "artifacts": [
-    "po",
-    "dao",
-    "mapper-xml",
-    "repo",
-    "domain-model",
-    "domain-query"
+    "command",
+    "query",
+    "result",
+    "converter",
+    "domain-service",
+    "domain-impl",
+    "manage",
+    "manage-impl"
   ],
-  "existingTypeMappings": {},
+  "existingTypeMappings": {
+    "po": "top.egon.enjoyshop.goods.infrastructure.ad.po.AdPO",
+    "dao": "top.egon.enjoyshop.goods.infrastructure.ad.dao.AdDAO"
+  },
   "fieldPolicies": {
     "create": [
       "name",

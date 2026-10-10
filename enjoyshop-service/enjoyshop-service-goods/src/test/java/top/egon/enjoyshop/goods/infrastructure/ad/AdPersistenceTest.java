@@ -79,10 +79,10 @@ class AdPersistenceTest {
                 "name", "position", "imageUrl", "targetUrl", "status", "startTime", "endTime", "sortOrder");
         assertThat(adPo.getDeclaredField("startTime").getType()).isEqualTo(Instant.class);
         assertThat(adPo.getDeclaredField("endTime").getType()).isEqualTo(Instant.class);
-        jakarta.validation.constraints.Pattern statusPattern =
-                adPo.getDeclaredField("status").getAnnotation(jakarta.validation.constraints.Pattern.class);
-        assertThat(statusPattern).isNotNull();
-        assertThat(statusPattern.regexp()).isEqualTo("^(?:0|1)$");
+        assertThat(adPo.getDeclaredField("status").getType().getName())
+                .isEqualTo("top.egon.enjoyshop.goods.domain.ad.AdStatusEnum");
+        assertThat(adPo.getDeclaredField("status").getAnnotation(com.baomidou.mybatisplus.annotation.TableField.class)
+                .value()).isEqualTo("status");
 
         assertThat(adRepository.getGenericSuperclass()).isInstanceOf(ParameterizedType.class);
         ParameterizedType repositoryType = (ParameterizedType) adRepository.getGenericSuperclass();
@@ -113,6 +113,41 @@ class AdPersistenceTest {
             assertThat(entry.path("sha256").asText()).isEqualTo(PRIOR_SHA256.get(index));
             assertThat(sha256(resourceBytes(path))).isEqualTo(PRIOR_SHA256.get(index));
         }
+    }
+
+    @Test
+    void tenantPredicates() throws Exception {
+        String mapper = new String(resourceBytes("mybatis/mapper/ad/AdDAO.xml"), StandardCharsets.UTF_8);
+        assertThat(mapper).contains(
+                "<select id=\"selectByLifecycle\"",
+                "<select id=\"lockByLifecycle\"",
+                "<select id=\"selectPage\"",
+                "<select id=\"countPage\"",
+                "<select id=\"selectCandidates\"",
+                "AND tenant_id = #{tenantId}",
+                "AND deleted_at IS NULL");
+        assertThat(mapper).contains("FOR UPDATE", "ORDER BY sort_order ASC, id ASC", "LIMIT #{limit}");
+    }
+
+    @Test
+    void concurrentVersionContract() throws Exception {
+        String mapper = new String(resourceBytes("mybatis/mapper/ad/AdDAO.xml"), StandardCharsets.UTF_8);
+        assertThat(mapper).contains(
+                "AND tenant_id = #{et.tenantId}",
+                "AND deleted_at IS NULL\n          AND version = #{MP_OPTLOCK_VERSION_ORIGINAL}",
+                "version = version + 1",
+                "CURRENT_TIMESTAMP AT TIME ZONE 'UTC'");
+    }
+
+    @Test
+    void terminalDeleteContract() throws Exception {
+        String mapper = new String(resourceBytes("mybatis/mapper/ad/AdDAO.xml"), StandardCharsets.UTF_8);
+        assertThat(mapper).contains(
+                "<update id=\"deleteVersionedById\">",
+                "UPDATE ad",
+                "deleted_at = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')",
+                "AND deleted_at IS NULL");
+        assertThat(mapper).doesNotContain("DELETE FROM ad");
     }
 
     @Test

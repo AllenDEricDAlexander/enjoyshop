@@ -30,7 +30,18 @@ public enum GoodsErrorStatus implements ErrorStatus {
     PRODUCT_FORBIDDEN(610206, "product permission is denied"),
     PRODUCT_ID_UNAVAILABLE(610207, "product identifier generation is unavailable"),
     PRODUCT_AUTHORIZATION_UNAVAILABLE(610208, "product authorization is unavailable"),
-    PRODUCT_INTERNAL_ERROR(610299, "product internal error");
+    PRODUCT_INTERNAL_ERROR(610299, "product internal error"),
+    AD_REQUEST_INVALID(610301, "advertisement request is invalid"),
+    AD_NOT_FOUND(610302, "advertisement does not exist or is not visible"),
+    AD_VERSION_CONFLICT(610303, "advertisement was updated by another operation"),
+    AD_DEPENDENCY_UNAVAILABLE(610304, "advertisement dependency is unavailable"),
+    AD_FORBIDDEN(610305, "advertisement permission is denied"),
+    AD_SITE_NOT_CONFIGURED(610306, "advertisement site is not configured"),
+    AD_DATA_LIMIT(610307, "advertisement data exceeds the configured limit"),
+    AD_AUTHORIZATION_UNAVAILABLE(610308, "advertisement authorization is unavailable"),
+    AD_ID_UNAVAILABLE(610309, "advertisement identifier generation is unavailable"),
+    AD_DATA_INVALID(610310, "advertisement data is invalid"),
+    AD_INTERNAL_ERROR(610399, "advertisement internal error");
 
     private final int code;
 

@@ -19,6 +19,24 @@ egon:
             "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.countPage]":
               scope: COUNT
               table: spu
+            "[top.egon.enjoyshop.goods.infrastructure.ad.dao.AdDAO.selectByLifecycle]":
+              scope: ID
+              table: ad
+            "[top.egon.enjoyshop.goods.infrastructure.ad.dao.AdDAO.lockByLifecycle]":
+              scope: ID
+              table: ad
+            "[top.egon.enjoyshop.goods.infrastructure.ad.dao.AdDAO.selectPage]":
+              scope: PAGE
+              table: ad
+            "[top.egon.enjoyshop.goods.infrastructure.ad.dao.AdDAO.countPage]":
+              scope: COUNT
+              table: ad
+            "[top.egon.enjoyshop.goods.infrastructure.ad.dao.AdDAO.selectCandidates]":
+              scope: PAGE
+              table: ad
+            "[top.egon.enjoyshop.goods.infrastructure.ad.dao.AdDAO.deleteVersionedById]":
+              scope: MONOTONE_DELETE
+              table: ad
             "[top.egon.enjoyshop.goods.infrastructure.goods.dao.SpuDAO.purgeDeletedById]":
               scope: PURGE_ID
               table: spu

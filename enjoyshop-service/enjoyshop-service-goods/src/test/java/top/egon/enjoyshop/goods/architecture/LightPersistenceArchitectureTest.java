@@ -51,7 +51,7 @@ class LightPersistenceArchitectureTest {
 
         assertEquals(14, count(javaFiles, "PO.java"));
         assertEquals(14, count(javaFiles, "DAO.java"));
-        assertEquals(9, count(javaFiles, "DomainServiceImpl.java"));
+        assertEquals(10, count(javaFiles, "DomainServiceImpl.java"));
         for (String prefix : List.of("Spu", "Sku", "CategoryBrand", "Ad")) {
             assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "PO.java")));
             assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "DAO.java")));
@@ -65,6 +65,17 @@ class LightPersistenceArchitectureTest {
         assertFalse(Files.exists(Path.of("src/main/resources/datasource/sharding.yml")));
         assertFalse(Files.exists(Path.of("src/main/resources/sharding/shardingsphere-sharding.yml")));
         assertTrue(Files.exists(Path.of("src/main/resources/egon-mybatis-plus-sharding.yml")));
+        assertFalse(Files.exists(Path.of("src/main/java/top/egon/enjoyshop/goods/application/ad/CreateAdCommand.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/top/egon/enjoyshop/goods/application/ad/UpdateAdCommand.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/top/egon/enjoyshop/goods/application/ad/DeleteAdCommand.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/top/egon/enjoyshop/goods/application/ad/AdDetailQuery.java")));
+        Path adDomainService = Path.of("src/main/java/top/egon/enjoyshop/goods/domain/ad/AdDomainService.java");
+        assertFalse(read(adDomainService).contains("org.springframework"));
+        Path adDomain = Path.of("src/main/java/top/egon/enjoyshop/goods/domain/ad/AdBO.java");
+        assertFalse(read(adDomain).contains("com.baomidou.mybatisplus"));
+        Path adDomainServiceImpl = Path.of("src/main/java/top/egon/enjoyshop/goods/infrastructure/ad/service/impl/AdDomainServiceImpl.java");
+        assertFalse(read(adDomainServiceImpl).contains("AdDAO"));
+        assertFalse(read(adDomainServiceImpl).contains("getBaseMapper"));
     }
 
     @Test
