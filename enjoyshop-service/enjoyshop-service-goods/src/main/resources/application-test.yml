@@ -7,6 +7,9 @@ spring:
   autoconfigure:
     exclude:
       - org.redisson.spring.starter.RedissonAutoConfigurationV2
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
   servlet:
     multipart:
       max-file-size: 10MB
@@ -20,6 +23,11 @@ management:
 
 
 app:
+  cdc:
+    enabled: false
+    max-payload-bytes: 1048576
+    confirm-timeout: PT5S
+    source-registry: {}
   web:
     cors:
       allowed-origins: http://localhost:9100

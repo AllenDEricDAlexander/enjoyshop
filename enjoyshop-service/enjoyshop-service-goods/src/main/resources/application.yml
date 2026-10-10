@@ -49,6 +49,8 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
   rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
     listener:
       simple:
         retry:
@@ -116,6 +118,11 @@ logging:
       clean-history-on-start: ${LOG_CLEAN_HISTORY_ON_START:false}
 
 app:
+  cdc:
+    enabled: false
+    max-payload-bytes: 1048576
+    confirm-timeout: PT5S
+    source-registry: {}
   logging:
     instance-name: ${INSTANCE_ID:${HOSTNAME:local}}
     error-total-size-cap: ${LOG_ERROR_TOTAL_SIZE_CAP:2GB}

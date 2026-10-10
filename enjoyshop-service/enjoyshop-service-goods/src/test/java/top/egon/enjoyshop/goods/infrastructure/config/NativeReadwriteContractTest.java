@@ -4,6 +4,7 @@ import org.apache.shardingsphere.driver.yaml.YamlJDBCConfiguration;
 import org.apache.shardingsphere.infra.util.yaml.YamlEngine;
 import org.apache.shardingsphere.readwritesplitting.yaml.config.YamlReadwriteSplittingRuleConfiguration;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.amqp.RabbitProperties;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
@@ -26,6 +27,10 @@ import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.time.Duration;
@@ -45,6 +50,11 @@ class NativeReadwriteContractTest {
     private static final String NATIVE_RESOURCE = "classpath:egon-ss-readwrite.yml";
     private static final List<String> PROFILES = List.of(
             "application.yml", "application-dev.yml", "application-test.yml", "application-prod.yml");
+    private static final Map<String, Boolean> SAMPLE_RABBITMQ_STATE = Map.of(
+            "application.yml", false,
+            "application-dev.yml", true,
+            "application-test.yml", false,
+            "application-prod.yml", true);
     private static final List<String> LOGICAL_GROUPS = List.of("master_data", "shard_0", "shard_1");
     private static final Set<String> MASTER_DATA_TABLES = Set.of(
             "spu", "sku", "users", "roles", "permissions", "user_roles", "role_permissions",
@@ -83,6 +93,43 @@ class NativeReadwriteContractTest {
             assertThat(region.getL2Jitter()).isEqualTo(Duration.ofSeconds(5));
             assertThat(region.getNullExpire()).isNull();
         }
+    }
+
+    @Test
+    void cdcDisabledByDefaultWithTypedConfirmBudgetsInEveryProfile() {
+        for (String profile : PROFILES) {
+            StandardEnvironment environment = profileEnvironment(profile);
+            CdcSourceProperties cdc = Binder.get(environment)
+                    .bind("app.cdc", Bindable.of(CdcSourceProperties.class))
+                    .orElseThrow(() -> new IllegalStateException("CDC properties did not bind for " + profile));
+            RabbitProperties rabbit = Binder.get(environment)
+                    .bind("spring.rabbitmq", Bindable.of(RabbitProperties.class))
+                    .orElseThrow(() -> new IllegalStateException("Rabbit properties did not bind for " + profile));
+            assertThat(cdc.isEnabled()).as("CDC must be disabled in %s", profile).isFalse();
+            assertThat(cdc.getMaxPayloadBytes()).isEqualTo(1_048_576);
+            assertThat(cdc.getConfirmTimeout()).isEqualTo(Duration.ofSeconds(5));
+            assertThat(cdc.getSourceRegistry()).isEmpty();
+            assertThat(rabbit.getPublisherConfirmType())
+                    .as("publisher confirms in %s", profile)
+                    .isEqualTo(org.springframework.amqp.rabbit.connection.CachingConnectionFactory.ConfirmType.CORRELATED);
+            assertThat(rabbit.isPublisherReturns()).as("publisher returns in %s", profile).isTrue();
+            assertThat(environment.getProperty("app.integrations.rabbitmq.enabled", Boolean.class))
+                    .as("existing sample Rabbit integration in %s", profile)
+                    .isEqualTo(SAMPLE_RABBITMQ_STATE.get(profile));
+            try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
+                new ValidationUtils(factory.getValidator()).validate(cdc);
+            }
+        }
+    }
+
+    @Test
+    void originalSampleRabbitConfigurationRemainsUnchangedAndNoNewBrokerSdkIsRequired() throws Exception {
+        assertThat(sha256(Path.of("src/main/java/top/egon/enjoyshop/goods/infrastructure/config/RabbitMqConfig.java")))
+                .isEqualTo("5d8f721d5a5a79718034e5be009c1ea615d2a8de7dbef47da8934e1dfada5ab5");
+        assertThat(sha256(Path.of("src/main/java/top/egon/enjoyshop/goods/infrastructure/mq/MqRouteEnum.java")))
+                .isEqualTo("bdbb81af71feb66808b439666cafdf445ea7d9714c5c219f3947746277e99258");
+        String pom = Files.readString(Path.of("pom.xml"), StandardCharsets.UTF_8).toLowerCase(java.util.Locale.ROOT);
+        assertThat(pom).doesNotContain("debezium", "kafka-clients", "elasticsearch", "transactional-outbox-starter");
     }
 
     @Test
@@ -176,6 +223,23 @@ class NativeReadwriteContractTest {
         return Binder.get(environment)
                 .bind("egon.cola.component.cache", Bindable.of(EgonColaCacheProperties.class))
                 .orElseThrow(() -> new IllegalStateException("cache properties did not bind for " + profile));
+    }
+
+    private static StandardEnvironment profileEnvironment(String profile) {
+        StandardEnvironment environment = new StandardEnvironment();
+        try {
+            for (var source : new YamlPropertySourceLoader().load(profile, new ClassPathResource(profile))) {
+                environment.getPropertySources().addFirst(source);
+            }
+        } catch (IOException failure) {
+            throw new IllegalStateException("cannot load profile " + profile, failure);
+        }
+        return environment;
+    }
+
+    private static String sha256(Path path) throws IOException, NoSuchAlgorithmException {
+        return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(Files.readAllBytes(path)));
     }
 
     private static EgonColaShardingProperties routingProperties() {
