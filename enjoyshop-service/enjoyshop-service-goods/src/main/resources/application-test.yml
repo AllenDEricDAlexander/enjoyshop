@@ -33,6 +33,15 @@ app:
     secret-key: test-secret-key
     api-call-attempt-timeout: 15s
     api-call-timeout: 20s
+  ad:
+    public-enabled: true
+    public-sites:
+      store.example.test: 41
+    allowed-positions:
+      - web_index_lb
+    candidate-limit: 200
+    public-limit: 20
+    load-timeout: PT2S
   integrations:
     rabbitmq:
       enabled: false

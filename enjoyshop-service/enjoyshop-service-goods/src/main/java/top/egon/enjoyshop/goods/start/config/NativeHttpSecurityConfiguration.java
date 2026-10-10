@@ -89,6 +89,42 @@ public class NativeHttpSecurityConfiguration {
                 .build();
     }
 
+    @Bean("adSecurityFilterChain")
+    @Order(Ordered.LOWEST_PRECEDENCE - 3)
+    SecurityFilterChain adSecurityFilterChain(HttpSecurity http,
+            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource cors,
+            @Qualifier("jacksonObjectMapper") ObjectMapper mapper,
+            @Qualifier("idpBearerAuthenticationFilter") IdpBearerAuthenticationFilter identity,
+            @Qualifier("rbac3BearerAuthenticationFilter") Rbac3BearerAuthenticationFilter permissions,
+            @Value("${egon.cola.platform.tianquan.shoubing.register-filter:false}") boolean idpRegistration,
+            @Value("${egon.cola.platform.tianquan.jianshen.register-filter:false}") boolean rbacRegistration) throws Exception {
+        if (idpRegistration || rbacRegistration) {
+            throw new IllegalStateException("Advertisement authentication filters must only run inside the ad SecurityFilterChain");
+        }
+        http.securityMatcher("/api/v1/ads", "/api/v1/ads/**");
+        configureCommonSecurity(http, cors, mapper);
+        http.addFilterBefore(permissions, AnonymousAuthenticationFilter.class)
+                .addFilterBefore(identity, Rbac3BearerAuthenticationFilter.class);
+        return http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated()).build();
+    }
+
+    @Bean("publicAdSecurityFilterChain")
+    @Order(Ordered.LOWEST_PRECEDENCE - 4)
+    SecurityFilterChain publicAdSecurityFilterChain(HttpSecurity http,
+            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource cors,
+            @Qualifier("jacksonObjectMapper") ObjectMapper mapper,
+            @Value("${app.ad.public-enabled:false}") boolean publicEnabled) throws Exception {
+        http.securityMatcher("/api/v1/ad-slots/**");
+        configureCommonSecurity(http, cors, mapper);
+        return http.authorizeHttpRequests(authorize -> {
+                    if (publicEnabled) {
+                        authorize.requestMatchers(HttpMethod.GET, "/api/v1/ad-slots/*/ads").permitAll();
+                    }
+                    authorize.anyRequest().denyAll();
+                })
+                .build();
+    }
+
     private static void configureCommonSecurity(HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource,
             ObjectMapper objectMapper) throws Exception {

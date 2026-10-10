@@ -25,6 +25,14 @@ app:
     secret-key: ${OBJECT_STORAGE_SECRET_KEY:}
     api-call-attempt-timeout: 15s
     api-call-timeout: 20s
+  ad:
+    public-enabled: false
+    public-sites: {}
+    allowed-positions:
+      - web_index_lb
+    candidate-limit: 200
+    public-limit: 20
+    load-timeout: PT2S
   integrations:
     rabbitmq:
       enabled: ${RABBITMQ_ENABLED:true}

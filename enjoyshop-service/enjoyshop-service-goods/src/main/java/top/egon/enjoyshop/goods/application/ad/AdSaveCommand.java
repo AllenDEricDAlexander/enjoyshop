@@ -1,6 +1,7 @@
 package top.egon.enjoyshop.goods.application.ad;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -72,6 +73,12 @@ public class AdSaveCommand implements AdWindowValidator.AdWindowInput {
     @JsonAnySetter
     public void rejectUnknown(String name, Object value) {
         throw new IllegalArgumentException("Unknown advertisement field: " + name);
+    }
+
+    @JsonSetter("name")
+    public AdSaveCommand setName(String name) {
+        this.name = name == null ? null : name.trim();
+        return this;
     }
 
     @Override

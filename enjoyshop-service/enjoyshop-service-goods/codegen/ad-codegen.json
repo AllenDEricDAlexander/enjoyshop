@@ -15,14 +15,7 @@
     "ad"
   ],
   "artifacts": [
-    "command",
-    "query",
-    "result",
-    "converter",
-    "domain-service",
-    "domain-impl",
-    "manage",
-    "manage-impl"
+    "controller"
   ],
   "existingTypeMappings": {
     "po": "top.egon.enjoyshop.goods.infrastructure.ad.po.AdPO",

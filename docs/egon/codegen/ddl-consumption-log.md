@@ -3463,3 +3463,95 @@ BEGIN
 END
 $egon$;
 ```
+
+## 2026-10-10 18:27:19 Asia/Shanghai — profile light → enjoyshop-service/enjoyshop-service-goods
+
+- 生成动作：`egon-codegen.sh plan`（`planId=7627e99c62bbe9d7c612d7549842bb5fdd165947a7585b5424d8f4c029362795`，1 个 ADD、0 pending、0 冲突）→ `egon-codegen.sh apply`（`status=APPLIED`，退出码 0，应用 1 个文件）。
+- 生成器配置：`enjoyshop-service/enjoyshop-service-goods/codegen/ad-codegen.json`（`input.mode=schema`，artifacts=`controller`，logicalTables=`ad`；保留已存在 AdPO/AdDAO type mappings）。配置文件SHA-256：`fa3d59c8cf10a33901051f607286e78d27390322ae389c28ddc3ae4278ae409c`。
+- throughVersion: none — 输入仍是 CREATE-only 模块schema视图 `enjoyshop-service/enjoyshop-service-goods/codegen/ad-create.sql`，不是 classpath SQL。该 apply 的唯一暂态输出是 `src/main/java/top/egon/enjoyshop/goods/adapter/ad/AdController.java`，随后按既有 advice 包边界移动到 `src/main/java/top/egon/enjoyshop/goods/adapter/goods/AdController.java` 并按Spec完成六个映射。
+- 派生输入视图SHA-256（文件字节）：`2a7f67c09c523d14d930af8785b297a32aac063909c55dc6aacda7cb5f19f61c`。
+- 原脚本来源：`enjoyshop-service/enjoyshop-service-goods/src/main/resources/db/egon-mp/V20261010_001__initialize_advertisement_cdc.sql`；SHA-256（文件字节）：`f66d690bc2587fed033d7e7dd94121b18266e1f6a795acc477f38c6ba8392efa`，与 Step 3 journal 完全一致。旧 classpath 脚本、Manifest 和 SQL 文本均未改变。
+- 记录边界：生成器只读取schema视图并生成Controller源码；随后只移动该临时源码至批准包路径；未连接PostgreSQL、未执行SQL；不包含新增应用依赖或安全链/服务启动。
+
+### Generator input view — `enjoyshop-service/enjoyshop-service-goods/codegen/ad-create.sql`
+
+```sql
+CREATE TABLE ad (
+            id BIGINT PRIMARY KEY,
+            tenant_id BIGINT NOT NULL,
+            create_user_id VARCHAR(128) NOT NULL DEFAULT 'migration',
+            create_time TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            update_user_id VARCHAR(128) NOT NULL DEFAULT 'migration',
+            update_time TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TIMESTAMP(6) WITHOUT TIME ZONE,
+            version BIGINT NOT NULL DEFAULT 0 CHECK (version >= 0),
+            name VARCHAR(120) NOT NULL,
+            position VARCHAR(64) NOT NULL,
+            image_url VARCHAR(512) NOT NULL,
+            target_url VARCHAR(1024) NOT NULL,
+            status CHAR(1) NOT NULL DEFAULT '0',
+            start_time TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+            end_time TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            CONSTRAINT ck_ad_tenant CHECK (tenant_id > 0),
+            CONSTRAINT ck_ad_name CHECK (char_length(name) BETWEEN 1 AND 120 AND btrim(name) <> ''),
+            CONSTRAINT ck_ad_position CHECK (position ~ '^[a-z][a-z0-9_]{0,63}$'),
+            CONSTRAINT ck_ad_image_url CHECK (btrim(image_url) <> ''),
+            CONSTRAINT ck_ad_target_url CHECK (btrim(target_url) <> ''),
+            CONSTRAINT ck_ad_status CHECK (status IN ('0', '1')),
+            CONSTRAINT ck_ad_window CHECK (end_time > start_time),
+            CONSTRAINT ck_ad_sort_order CHECK (sort_order BETWEEN 0 AND 1000000)
+        );
+
+CREATE INDEX idx_ad_active_slot ON ad (tenant_id, position, sort_order, id) WHERE deleted_at IS NULL AND status = '1';
+CREATE INDEX idx_ad_admin_tenant_id ON ad (tenant_id, id DESC) WHERE deleted_at IS NULL;
+```
+
+### Source migration provenance — `enjoyshop-service/enjoyshop-service-goods/src/main/resources/db/egon-mp/V20261010_001__initialize_advertisement_cdc.sql`
+
+```sql
+-- Advertisement source data is owned by master_data; shard targets remain unchanged.
+DO $egon$
+BEGIN
+    IF current_setting('egon_migration.role') = 'MASTER_DATA' THEN
+        CREATE TABLE ad (
+            id BIGINT PRIMARY KEY,
+            tenant_id BIGINT NOT NULL,
+            create_user_id VARCHAR(128) NOT NULL DEFAULT 'migration',
+            create_time TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            update_user_id VARCHAR(128) NOT NULL DEFAULT 'migration',
+            update_time TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TIMESTAMP(6) WITHOUT TIME ZONE,
+            version BIGINT NOT NULL DEFAULT 0 CHECK (version >= 0),
+            name VARCHAR(120) NOT NULL,
+            position VARCHAR(64) NOT NULL,
+            image_url VARCHAR(512) NOT NULL,
+            target_url VARCHAR(1024) NOT NULL,
+            status CHAR(1) NOT NULL DEFAULT '0',
+            start_time TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+            end_time TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            CONSTRAINT ck_ad_tenant CHECK (tenant_id > 0),
+            CONSTRAINT ck_ad_name CHECK (char_length(name) BETWEEN 1 AND 120 AND btrim(name) <> ''),
+            CONSTRAINT ck_ad_position CHECK (position ~ '^[a-z][a-z0-9_]{0,63}$'),
+            CONSTRAINT ck_ad_image_url CHECK (btrim(image_url) <> ''),
+            CONSTRAINT ck_ad_target_url CHECK (btrim(target_url) <> ''),
+            CONSTRAINT ck_ad_status CHECK (status IN ('0', '1')),
+            CONSTRAINT ck_ad_window CHECK (end_time > start_time),
+            CONSTRAINT ck_ad_sort_order CHECK (sort_order BETWEEN 0 AND 1000000)
+        );
+
+        CREATE INDEX idx_ad_active_slot ON ad (tenant_id, position, sort_order, id) WHERE deleted_at IS NULL AND status = '1';
+        CREATE INDEX idx_ad_admin_tenant_id ON ad (tenant_id, id DESC) WHERE deleted_at IS NULL;
+
+        ALTER TABLE public.ad REPLICA IDENTITY FULL;
+        ALTER TABLE public.spu REPLICA IDENTITY FULL;
+        ALTER TABLE public.sku REPLICA IDENTITY FULL;
+    ELSIF current_setting('egon_migration.role') = 'SHARD' THEN
+        -- SHARD has no advertisement tables in this release.
+    ELSE
+        RAISE EXCEPTION 'Unknown managed DDL role';
+    END IF;
+END
+$egon$;
+```

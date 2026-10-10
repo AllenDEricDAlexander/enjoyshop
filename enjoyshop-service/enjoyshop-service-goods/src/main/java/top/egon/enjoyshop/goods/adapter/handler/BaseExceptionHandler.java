@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -14,6 +15,7 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -48,7 +50,14 @@ public class BaseExceptionHandler {
      */
     @ExceptionHandler(CommonException.class)
     public ResponseEntity<ResultRecord<Void>> handleCommonException(CommonException exception, HttpServletRequest request) {
-        if (!productPath(request)) { return handleCommonException(exception); }
+        if (!productPath(request)) {
+            if (!adPath(request)) { return handleCommonException(exception); }
+            if (exception.getCode() == 401000) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResultRecord.failure(exception));
+            }
+            GoodsErrorStatus error = mapBusinessStatus(exception.getCode());
+            return adError(error, httpStatus(error.getCode()));
+        }
         if (idFailure(exception)) { return productError(GoodsErrorStatus.PRODUCT_ID_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE); }
         if (exception.getCode() == 401000) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResultRecord.failure(exception));
@@ -113,6 +122,15 @@ public class BaseExceptionHandler {
                 .body(ResultRecord.failure(requestErrorStatus(request)));
     }
 
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ResultRecord<Void>> handleUnsupportedMedia(
+            HttpMediaTypeNotSupportedException exception, HttpServletRequest request) {
+        if (adPath(request)) {
+            return adError(GoodsErrorStatus.AD_REQUEST_INVALID, HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        }
+        return handleUnexpectedException(exception, request);
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ResultRecord<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
         log.warn("file upload rejected because the request exceeds the configured size limit");
@@ -127,6 +145,7 @@ public class BaseExceptionHandler {
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<ResultRecord<Void>> handleUniqueConflict(DuplicateKeyException exception, HttpServletRequest request) {
         if (productPath(request)) { return productError(GoodsErrorStatus.PRODUCT_BUSINESS_KEY_CONFLICT, HttpStatus.CONFLICT); }
+        if (adPath(request)) { return adError(GoodsErrorStatus.AD_VERSION_CONFLICT, HttpStatus.CONFLICT); }
         log.warn("goods unique conflict on concurrent create");
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ResultRecord.failure(GoodsErrorStatus.BRAND_NAME_DUPLICATED));
@@ -152,6 +171,23 @@ public class BaseExceptionHandler {
             log.error("unexpected product failure", exception);
             return productError(GoodsErrorStatus.PRODUCT_INTERNAL_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
         }
+        if (adPath(request)) {
+            if (idFailure(exception)) { return adError(GoodsErrorStatus.AD_ID_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE); }
+            if (exception instanceof org.springframework.security.access.AccessDeniedException
+                    || exception instanceof top.egon.cola.platform.tianquan.jianshen.starter.authorization.DefaultAuthorizationService.AuthorizationDeniedException
+                    || exception instanceof top.egon.cola.platform.tianquan.jianshen.starter.client.Rbac3AuthorizationClient.AuthorizationDeniedException) {
+                return adError(GoodsErrorStatus.AD_FORBIDDEN, HttpStatus.FORBIDDEN);
+            }
+            if (exception instanceof top.egon.cola.platform.tianquan.jianshen.starter.authorization.AuthorizationService.RuntimeUnavailableException
+                    || exception instanceof top.egon.cola.platform.tianquan.jianshen.starter.client.Rbac3AuthorizationClient.AuthorizationUnavailableException) {
+                return adError(GoodsErrorStatus.AD_AUTHORIZATION_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE);
+            }
+            if (exception instanceof DataAccessException) {
+                return adError(GoodsErrorStatus.AD_DEPENDENCY_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE);
+            }
+            log.error("unexpected advertisement failure", exception);
+            return adError(GoodsErrorStatus.AD_INTERNAL_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
         log.error("unexpected goods failure", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ResultRecord.failure(GoodsErrorStatus.BRAND_INTERNAL_ERROR));
@@ -164,12 +200,14 @@ public class BaseExceptionHandler {
     private static HttpStatusCode httpStatus(int code) {
         return switch (code) {
             case 610101, 610106, 610110, 610201 -> HttpStatus.BAD_REQUEST;
-            case 610102, 610202 -> HttpStatus.NOT_FOUND;
-            case 610103, 610104, 610203, 610204, 610205 -> HttpStatus.CONFLICT;
+            case 610102, 610202, 610302, 610306 -> HttpStatus.NOT_FOUND;
+            case 610103, 610104, 610203, 610204, 610205, 610303 -> HttpStatus.CONFLICT;
             case 610105 -> HttpStatus.UNAUTHORIZED;
-            case 610206 -> HttpStatus.FORBIDDEN;
+            case 610206, 610305 -> HttpStatus.FORBIDDEN;
             case 610107 -> HttpStatus.PAYLOAD_TOO_LARGE;
-            case 610108, 610109, 610207, 610208 -> HttpStatus.SERVICE_UNAVAILABLE;
+            case 610108, 610109, 610207, 610208, 610304, 610307, 610308, 610309, 610310 -> HttpStatus.SERVICE_UNAVAILABLE;
+            case 610301 -> HttpStatus.BAD_REQUEST;
+            case 610399 -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }
@@ -185,6 +223,7 @@ public class BaseExceptionHandler {
         String contextPath = request.getContextPath();
         String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
         if (productPath(request)) { return GoodsErrorStatus.PRODUCT_REQUEST_INVALID; }
+        if (adPath(request)) { return GoodsErrorStatus.AD_REQUEST_INVALID; }
         if (path.equals("/api/v1/specs") || path.startsWith("/api/v1/specs/")) {
             return GoodsErrorStatus.CATALOG_REQUEST_INVALID;
         }
@@ -225,6 +264,23 @@ public class BaseExceptionHandler {
     private static boolean productPath(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         return path.equals("/api/v1/products") || path.startsWith("/api/v1/products/");
+    }
+
+    private static boolean adPath(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return path.equals("/api/v1/ads") || path.startsWith("/api/v1/ads/")
+                || path.equals("/api/v1/ad-slots") || path.startsWith("/api/v1/ad-slots/");
+    }
+
+    private static GoodsErrorStatus mapBusinessStatus(int code) {
+        return java.util.Arrays.stream(GoodsErrorStatus.values())
+                .filter(value -> value.getCode() == code && value.name().startsWith("AD_"))
+                .findFirst()
+                .orElse(GoodsErrorStatus.AD_INTERNAL_ERROR);
+    }
+
+    private static ResponseEntity<ResultRecord<Void>> adError(GoodsErrorStatus error, HttpStatusCode status) {
+        return ResponseEntity.status(status).body(ResultRecord.failure(error));
     }
 
     private static ResponseEntity<ResultRecord<Void>> productError(GoodsErrorStatus error, HttpStatusCode status) {

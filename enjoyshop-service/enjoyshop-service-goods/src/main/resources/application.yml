@@ -124,6 +124,14 @@ app:
       discarding-threshold: ${LOG_ASYNC_DISCARDING_THRESHOLD:0}
       never-block: ${LOG_ASYNC_NEVER_BLOCK:false}
       max-flush-time: ${LOG_ASYNC_MAX_FLUSH_TIME:5000}
+  ad:
+    public-enabled: false
+    public-sites: {}
+    allowed-positions:
+      - web_index_lb
+    candidate-limit: 200
+    public-limit: 20
+    load-timeout: PT2S
   integrations:
     rabbitmq:
       enabled: false
