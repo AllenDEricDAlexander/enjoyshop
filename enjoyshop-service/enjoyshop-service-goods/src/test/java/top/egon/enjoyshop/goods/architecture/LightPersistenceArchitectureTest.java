@@ -72,11 +72,36 @@ class LightPersistenceArchitectureTest {
         String sharding = read(Path.of("src/main/resources/egon-mybatis-plus-sharding.yml"));
         assertTrue(sharding.contains("mybatis-plus:"));
         assertTrue(sharding.contains("sharding:"));
-        assertTrue(sharding.contains("STANDARD_TENANT_ID"));
-        assertTrue(sharding.contains("tenant_id"));
-        assertTrue(sharding.contains("type: SINGLE"));
+        assertTrue(sharding.contains("config-style: NATIVE"));
+        assertTrue(sharding.contains("native-rules-resource: classpath:egon-ss-readwrite.yml"));
+        assertTrue(sharding.contains("mode: ${APP_DATASOURCE_MODE:SHARDING_READWRITE}"));
         assertTrue(sharding.contains("transaction-default-type: LOCAL"));
+        assertFalse(sharding.contains("config-style: STRATEGY"));
+        assertFalse(sharding.contains("STANDARD_TENANT_ID"));
         assertFalse(sharding.contains("UuidV7BucketShardingAlgorithm"));
+
+        String nativeRules = read(Path.of("src/main/resources/egon-ss-readwrite.yml"));
+        assertTrue(nativeRules.contains("!READWRITE_SPLITTING"));
+        assertTrue(nativeRules.contains("dataSourceGroups:"));
+        assertTrue(nativeRules.contains("master_data_primary"));
+        assertTrue(nativeRules.contains("master_data_replica_0"));
+        assertTrue(nativeRules.contains("shard_0_primary"));
+        assertTrue(nativeRules.contains("shard_0_replica_0"));
+        assertTrue(nativeRules.contains("shard_1_primary"));
+        assertTrue(nativeRules.contains("shard_1_replica_0"));
+        assertTrue(nativeRules.contains("transactionalReadQueryStrategy: PRIMARY"));
+        assertTrue(nativeRules.contains("!SINGLE"));
+        assertTrue(nativeRules.contains("master_data.public.brand"));
+        assertTrue(nativeRules.contains("!SHARDING"));
+        assertTrue(nativeRules.contains("school_classes_0"));
+        assertTrue(nativeRules.contains("school_classes_1"));
+        assertTrue(nativeRules.contains("class_course_schedules_0"));
+        assertTrue(nativeRules.contains("class_course_schedules_1"));
+        assertTrue(nativeRules.contains("bindingTables: [\"school_classes,class_course_schedules\"]"));
+        assertFalse(nativeRules.contains("master_data.public.school_classes_"));
+        assertFalse(nativeRules.contains("_t0"));
+        assertFalse(nativeRules.contains("_t1"));
+        assertFalse(nativeRules.contains("_t2"));
         assertFalse(sharding.contains("datasource/sharding.yml"));
     }
 

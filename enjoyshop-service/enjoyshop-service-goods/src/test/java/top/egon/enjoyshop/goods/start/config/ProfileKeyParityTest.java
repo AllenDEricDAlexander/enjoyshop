@@ -18,16 +18,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * {@code TEST-013} executed statically: the governance key families must be present in every
- * environment file with the same "off unless a variable says otherwise" default, and the brand
- * routing entry must exist in every {@code tables} map the binder can reach.
+ * environment file with the same "off unless a variable says otherwise" default, and the native
+ * read/write rule resource must be selected consistently by every profile.
  *
  * <p>Nothing here starts a Spring context, connects to a database or reads an instance — the files
- * are parsed as data. That is deliberate: the runtime half of {@code REQ-004} (the {@code @Pattern}
- * that keeps the driver and URL PostgreSQL-only) is exercised at deployment, while key drift is a
- * purely textual property that must be catchable without any environment.</p>
+ * are parsed as data. That is deliberate: database routing and connection health are verified in
+ * their own offline/runtime gates, while profile key drift is a textual property that can be
+ * caught without any environment.</p>
  *
  * <p>The parity criterion is the narrowed one recorded by {@code PLAN-CLAR-026}/{@code RISK-P6}:
- * strict equality is asserted for the keys this change owns, not for the whole document, because the
+ * strict equality is asserted for the keys this test owns, not for the whole document, because the
  * archetype baseline keeps 110 base-only and 4 test-only sample keys by design and moving them would
  * be an unauthorised ~330-line change touching values that are supposed to differ per environment.
  * </p>
@@ -66,17 +66,11 @@ class ProfileKeyParityTest {
             "app.object-storage.api-call-timeout",
             "spring.servlet.multipart.max-file-size",
             "spring.servlet.multipart.max-request-size",
-            "egon.cola.component.mybatis-plus.sharding.tables.brand",
-            "egon.cola.component.mybatis-plus.sharding.tables.category.type",
-            "egon.cola.component.mybatis-plus.sharding.tables.category.data-source",
-            "egon.cola.component.mybatis-plus.sharding.tables.template.type",
-            "egon.cola.component.mybatis-plus.sharding.tables.template.data-source",
-            "egon.cola.component.mybatis-plus.sharding.tables.spec.type",
-            "egon.cola.component.mybatis-plus.sharding.tables.spec.data-source",
-            "egon.cola.component.mybatis-plus.sharding.tables.para.type",
-            "egon.cola.component.mybatis-plus.sharding.tables.para.data-source",
-            "egon.cola.component.mybatis-plus.sharding.tables.category_brand.type",
-            "egon.cola.component.mybatis-plus.sharding.tables.category_brand.data-source");
+            "egon.cola.component.mybatis-plus.sharding.config-style",
+            "egon.cola.component.mybatis-plus.sharding.native-rules-resource",
+            "egon.cola.component.mybatis-plus.sharding.mode",
+            "egon.cola.component.mybatis-plus.sharding.transaction-default-type",
+            "egon.cola.component.mybatis-plus.sharding.data-sources");
 
     private static final List<String> GOVERNANCE_SWITCHES = List.of(
             "egon.cola.component.tianshu.enabled",
@@ -185,32 +179,43 @@ class ProfileKeyParityTest {
     }
 
     @Test
-    void catalog_tables_are_single_master_data_in_every_profile() {
+    void catalogs_use_native_rule_resource_in_every_profile() {
         for (String profile : PROFILES) {
             Map<String, Object> root = load(profile);
-            assertThat(flatten(root))
-                    .as("catalog routing entries in %s", profile)
-                    .contains("egon.cola.component.mybatis-plus.sharding.tables.brand");
-            assertThat(effectiveDefault(valueAt(root,
-                    "egon.cola.component.mybatis-plus.sharding.tables.brand.type")))
-                    .as("brand remains SINGLE master data in %s", profile).isEqualTo("SINGLE");
-            assertThat(effectiveDefault(valueAt(root,
-                    "egon.cola.component.mybatis-plus.sharding.tables.brand.data-source")))
-                    .as("brand remains on master_data in %s", profile).isEqualTo("master_data");
-            for (String table : List.of("category", "template", "spec", "para", "category_brand")) {
-                String prefix = "egon.cola.component.mybatis-plus.sharding.tables." + table;
-                assertThat(flatten(root)).as("%s in %s", table, profile)
-                        .contains(prefix + ".type", prefix + ".data-source");
-                assertThat(effectiveDefault(valueAt(root, prefix + ".type")))
-                        .as("%s is SINGLE master data in %s", table, profile).isEqualTo("SINGLE");
-                assertThat(effectiveDefault(valueAt(root, prefix + ".data-source")))
-                        .as("%s lands on master_data in %s", table, profile).isEqualTo("master_data");
-            }
+            String prefix = "egon.cola.component.mybatis-plus.sharding.";
+            assertThat(effectiveDefault(valueAt(root, prefix + "config-style")))
+                    .as("NATIVE rules are selected in %s", profile).isEqualTo("NATIVE");
+            assertThat(effectiveDefault(valueAt(root, prefix + "native-rules-resource")))
+                    .as("native rule source is selected in %s", profile)
+                    .isEqualTo("classpath:egon-ss-readwrite.yml");
+            assertThat(effectiveDefault(valueAt(root, prefix + "mode")))
+                    .as("read/write mode is selected in %s", profile).isEqualTo("SHARDING_READWRITE");
+            assertThat(effectiveDefault(valueAt(root, prefix + "transaction-default-type")))
+                    .as("LOCAL transaction mode stays selected in %s", profile).isEqualTo("LOCAL");
+            assertThat(flatten(root)).as("legacy STRATEGY table entries in %s", profile)
+                    .noneMatch(key -> key.startsWith(prefix + "tables."));
         }
-        // The base file imports this one, so its tables map is a sixth place brand must exist.
-        assertThat(flatten(load(SHARDING_IMPORT)))
-                .contains("egon.cola.component.mybatis-plus.sharding.tables.brand");
-    }    @Test
+        assertThat(effectiveDefault(valueAt(load(SHARDING_IMPORT),
+                "egon.cola.component.mybatis-plus.sharding.native-rules-resource")))
+                .as("the imported base sharding configuration uses the same NATIVE rule source")
+                .isEqualTo("classpath:egon-ss-readwrite.yml");
+    }
+
+    @Test
+    void native_sharding_core_keys_have_strict_parity() {
+        String prefix = "egon.cola.component.mybatis-plus.sharding.";
+        Set<String> expected = new LinkedHashSet<>(flatten(load("application.yml")));
+        expected.removeIf(key -> !key.startsWith(prefix));
+
+        for (String profile : PROFILES) {
+            Set<String> actual = new LinkedHashSet<>(flatten(load(profile)));
+            actual.removeIf(key -> !key.startsWith(prefix));
+            assertThat(actual).as("native sharding key tree in %s", profile)
+                    .containsExactlyInAnyOrderElementsOf(expected);
+        }
+    }
+
+    @Test
     void productAuthorizationProfilesHaveIdenticalKeysAndBoundedCache() {
         String prefix = "egon.cola.platform.tianquan.jianshen";
         Set<String> expected = flatten(Map.of("jianshen", valueAt(load("application.yml"), prefix)));

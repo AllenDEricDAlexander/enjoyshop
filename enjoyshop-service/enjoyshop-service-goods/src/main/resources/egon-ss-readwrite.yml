@@ -1,0 +1,91 @@
+databaseName: egon
+rules:
+  - !READWRITE_SPLITTING
+    dataSourceGroups:
+      master_data:
+        writeDataSourceName: master_data_primary
+        readDataSourceNames: [master_data_replica_0]
+        transactionalReadQueryStrategy: PRIMARY
+        loadBalancerName: round_robin
+      shard_0:
+        writeDataSourceName: shard_0_primary
+        readDataSourceNames: [shard_0_replica_0]
+        transactionalReadQueryStrategy: PRIMARY
+        loadBalancerName: round_robin
+      shard_1:
+        writeDataSourceName: shard_1_primary
+        readDataSourceNames: [shard_1_replica_0]
+        transactionalReadQueryStrategy: PRIMARY
+        loadBalancerName: round_robin
+    loadBalancers:
+      round_robin:
+        type: ROUND_ROBIN
+  - !SINGLE
+    tables:
+      - master_data.public.spu
+      - master_data.public.sku
+      - master_data.public.users
+      - master_data.public.roles
+      - master_data.public.permissions
+      - master_data.public.user_roles
+      - master_data.public.role_permissions
+      - master_data.public.courses
+      - master_data.public.brand
+      - master_data.public.category
+      - master_data.public.template
+      - master_data.public.spec
+      - master_data.public.para
+      - master_data.public.category_brand
+  - !SHARDING
+    tables:
+      school_classes:
+        actualDataNodes: shard_0.public.school_classes_0,shard_0.public.school_classes_1,shard_1.public.school_classes_0,shard_1.public.school_classes_1
+        databaseStrategy:
+          standard:
+            shardingColumn: tenant_id
+            shardingAlgorithmName: school_classes_database
+        tableStrategy:
+          standard:
+            shardingColumn: tenant_id
+            shardingAlgorithmName: school_classes_table
+      class_course_schedules:
+        actualDataNodes: shard_0.public.class_course_schedules_0,shard_0.public.class_course_schedules_1,shard_1.public.class_course_schedules_0,shard_1.public.class_course_schedules_1
+        databaseStrategy:
+          standard:
+            shardingColumn: tenant_id
+            shardingAlgorithmName: class_course_schedules_database
+        tableStrategy:
+          standard:
+            shardingColumn: tenant_id
+            shardingAlgorithmName: class_course_schedules_table
+    bindingTables: ["school_classes,class_course_schedules"]
+    shardingAlgorithms:
+      school_classes_database:
+        type: CLASS_BASED
+        props:
+          strategy: STANDARD
+          algorithmClassName: top.egon.cola.component.common.mybatis.sharding.algorithm.EgonColaStandardTenantIdShardingAlgorithm
+          target-order: "shard_0,shard_1"
+      school_classes_table:
+        type: CLASS_BASED
+        props:
+          strategy: STANDARD
+          algorithmClassName: top.egon.cola.component.common.mybatis.sharding.algorithm.EgonColaStandardTenantIdShardingAlgorithm
+          target-order: "school_classes_0,school_classes_1"
+      class_course_schedules_database:
+        type: CLASS_BASED
+        props:
+          strategy: STANDARD
+          algorithmClassName: top.egon.cola.component.common.mybatis.sharding.algorithm.EgonColaStandardTenantIdShardingAlgorithm
+          target-order: "shard_0,shard_1"
+      class_course_schedules_table:
+        type: CLASS_BASED
+        props:
+          strategy: STANDARD
+          algorithmClassName: top.egon.cola.component.common.mybatis.sharding.algorithm.EgonColaStandardTenantIdShardingAlgorithm
+          target-order: "class_course_schedules_0,class_course_schedules_1"
+transaction:
+  defaultType: LOCAL
+props:
+  sql-show: false
+  check-table-metadata-enabled: true
