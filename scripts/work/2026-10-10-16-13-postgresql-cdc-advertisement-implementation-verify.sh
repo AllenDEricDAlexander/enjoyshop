@@ -4,13 +4,13 @@ set -euo pipefail
 repo_root="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel)"
 mode="${1:-}"
 case "$mode" in
-  --self-test|--topology|--schema) ;;
-  --standards|--deployment|--final)
+  --self-test|--topology|--schema|--deployment) ;;
+  --standards|--final)
     printf 'CHECK_PENDING: %s is added by its owning Plan Step\n' "$mode" >&2
     exit 77
     ;;
   *)
-    printf 'usage: %s --self-test|--topology|--schema\n' "$0" >&2
+    printf 'usage: %s --self-test|--topology|--schema|--deployment\n' "$0" >&2
     exit 2
     ;;
 esac
@@ -211,6 +211,357 @@ def check_schema():
     print(f"PASS: V20261010_001 SHA-256, immutable four-script prefix, {len(columns)} ad columns, two indexes, three Replica Identity changes, CREATE-only view {view_sha}")
 
 
+def read_properties(path):
+    properties = {}
+    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            problem(f"invalid property line {path.relative_to(root)}:{line_number}")
+        key, value = line.split("=", 1)
+        if key in properties:
+            problem(f"duplicate property {key} in {path.relative_to(root)}")
+        properties[key.strip()] = value.strip()
+    return properties
+
+
+def validate_debezium_properties(properties):
+    exact = {
+        "debezium.source.connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "debezium.source.offset.storage": "org.apache.kafka.connect.storage.FileOffsetBackingStore",
+        "debezium.source.plugin.name": "pgoutput",
+        "debezium.source.publication.autocreate.mode": "disabled",
+        "debezium.source.schema.include.list": "public",
+        "debezium.source.table.include.list": "public.ad,public.spu,public.sku",
+        "debezium.source.snapshot.mode": "initial",
+        "debezium.source.provide.transaction.metadata": "true",
+        "debezium.source.skip.messages.without.change": "false",
+        "debezium.source.skipped.operations": "none",
+        "debezium.source.tombstones.on.delete": "false",
+        "debezium.source.heartbeat.interval.ms": "0",
+        "debezium.format.key": "json",
+        "debezium.format.key.schemas.enable": "false",
+        "debezium.format.value": "json",
+        "debezium.format.value.schemas.enable": "false",
+        "debezium.sink.type": "rabbitmq",
+        "debezium.sink.rabbitmq.exchange": "enjoyshop.cdc.raw.v1",
+        "debezium.sink.rabbitmq.routingKey": "master-data",
+        "debezium.sink.rabbitmq.routingKey.source": "static",
+        "debezium.sink.rabbitmq.routingKeyDurable": "true",
+        "debezium.sink.rabbitmq.autoCreateRoutingKey": "false",
+        "debezium.sink.rabbitmq.deliveryMode": "2",
+    }
+    for key, value in exact.items():
+        if properties.get(key) != value:
+            problem(f"Debezium property {key} must be {value!r}")
+    placeholders = {
+        "debezium.source.offset.storage.file.filename": "${CDC_OFFSET_FILE:/data/debezium/offsets/offsets.dat}",
+        "debezium.source.topic.prefix": "${CDC_SOURCE_NAME}",
+        "debezium.source.database.hostname": "${CDC_PG_PRIMARY_HOST}",
+        "debezium.source.database.port": "${CDC_PG_PRIMARY_PORT:5432}",
+        "debezium.source.database.user": "${CDC_PG_REPLICATION_USER}",
+        "debezium.source.database.password": "${CDC_PG_REPLICATION_PASSWORD}",
+        "debezium.source.database.dbname": "${CDC_DATABASE}",
+        "debezium.source.database.sslmode": "${CDC_PG_SSLMODE:verify-full}",
+        "debezium.source.database.sslrootcert": "${CDC_PG_SSLROOTCERT}",
+        "debezium.source.slot.name": "${CDC_SLOT_NAME}",
+        "debezium.source.publication.name": "${CDC_PUBLICATION_NAME}",
+        "debezium.sink.rabbitmq.connection.host": "${CDC_RABBIT_HOST}",
+        "debezium.sink.rabbitmq.connection.port": "${CDC_RABBIT_PORT:5672}",
+        "debezium.sink.rabbitmq.connection.username": "${CDC_RABBIT_USER}",
+        "debezium.sink.rabbitmq.connection.password": "${CDC_RABBIT_PASSWORD}",
+        "debezium.sink.rabbitmq.ackTimeout": "${CDC_RABBIT_CONFIRM_TIMEOUT_MS:30000}",
+    }
+    for key, value in placeholders.items():
+        if properties.get(key) != value:
+            problem(f"Debezium property {key} must remain a release input placeholder")
+    offset_file = properties.get("debezium.source.offset.storage.file.filename", "")
+    if "emptyDir" in offset_file or "MemoryOffsetBackingStore" in offset_file:
+        problem("Debezium offsets must use the documented persistent file path")
+    if any(key.startswith("debezium.transforms") for key in properties):
+        problem("raw Debezium before/after payload must not be removed by SMT configuration")
+    for key, value in properties.items():
+        if "password" in key.lower() and not re.fullmatch(r"\$\{CDC_[A-Z0-9_]+\}", value):
+            problem(f"Debezium credential {key} must remain an environment reference")
+
+
+def check_release_reference(reference):
+    return bool(re.fullmatch(r"[^\s@]+@sha256:[a-f0-9]{64}", reference)) and "latest" not in reference.lower()
+
+
+def check_deployment_documents():
+    paths = {
+        "properties": root / "deployment/cdc/debezium/application.properties",
+        "postgres": root / "deployment/cdc/postgres/replication-contract.md",
+        "rabbit": root / "deployment/cdc/rabbit/topology-contract.md",
+        "acceptance": root / "deployment/cdc/acceptance.md",
+        "readme": root / "deployment/cdc/README.md",
+        "verify": root / "scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-verify.sh",
+    }
+    for path in paths.values():
+        if not path.is_file():
+            problem(f"missing CDC deployment contract: {path.relative_to(root)}")
+    properties = read_properties(paths["properties"])
+    validate_debezium_properties(properties)
+    postgres = paths["postgres"].read_text(encoding="utf-8")
+    rabbit = paths["rabbit"].read_text(encoding="utf-8")
+    acceptance = paths["acceptance"].read_text(encoding="utf-8")
+    readme = paths["readme"].read_text(encoding="utf-8")
+    verify = paths["verify"].read_text(encoding="utf-8")
+    for token in ("pg_replication_slots", "restart_lsn", "confirmed_flush_lsn", "RPO", "fence",
+                  "publication.autocreate.mode=disabled"):
+        if token not in postgres:
+            problem(f"PostgreSQL contract is missing {token}")
+    for token in ("enjoyshop.cdc.raw.v1", "enjoyshop.sync.v1", "enjoyshop.cdc.dead.v1",
+                  "enjoyshop.cdc.unrouted.v1", "at-least-once", "reject-publish", "no consumer"):
+        if token not in rabbit:
+            problem(f"Rabbit topology contract is missing {token}")
+    for test_id in ("TEST-019", "TEST-020", "TEST-021", "TEST-022"):
+        if test_id not in acceptance:
+            problem(f"acceptance record is missing {test_id}")
+    if "deployment release is blocked" not in acceptance or "Not run" not in acceptance:
+        problem("acceptance record must keep live release blocked and manual tests Not run")
+    for input_name in ("CDC_SOURCE_NAME", "CDC_SOURCE_EPOCH", "CDC_RABBIT_VHOST", "sha256"):
+        if input_name not in readme and input_name not in acceptance:
+            problem(f"README/acceptance must declare {input_name} as a release input")
+    if "one active" not in readme or "persistent offset" not in readme or "NetworkPolicy" not in readme:
+        problem("README is missing the single-owner K8s, persistent offset, or network boundary")
+    if "--deployment" not in verify or "--self-test" not in verify:
+        problem("offline verifier does not expose the documented deployment modes")
+    for profile in ("application.yml", "application-dev.yml", "application-test.yml", "application-prod.yml"):
+        text = (root / module / "src/main/resources" / profile).read_text(encoding="utf-8")
+        cdc_pattern = r"(?m)^  cdc:\n    enabled: false\n    max-payload-bytes: 1048576\n    confirm-timeout: PT5S\n    source-registry: \{\}$"
+        rabbit_pattern = r"(?m)^  rabbitmq:\n    publisher-confirm-type: correlated\n    publisher-returns: true$"
+        if not re.search(cdc_pattern, text):
+            problem(f"{profile} must keep the CDC source registry explicit and disabled by default")
+        if not re.search(rabbit_pattern, text):
+            problem(f"{profile} lacks the Rabbit confirm/return settings")
+    for relative, expected_hash in (
+            ("src/main/java/top/egon/enjoyshop/goods/infrastructure/config/RabbitMqConfig.java",
+             "5d8f721d5a5a79718034e5be009c1ea615d2a8de7dbef47da8934e1dfada5ab5"),
+            ("src/main/java/top/egon/enjoyshop/goods/infrastructure/mq/MqRouteEnum.java",
+             "bdbb81af71feb66808b439666cafdf445ea7d9714c5c219f3947746277e99258")):
+        actual = hashlib.sha256((root / module / relative).read_bytes()).hexdigest()
+        if actual != expected_hash:
+            problem(f"original sample Rabbit file changed: {relative}")
+    pom = (root / module / "pom.xml").read_text(encoding="utf-8").lower()
+    if any(name in pom for name in ("debezium", "kafka-clients", "elasticsearch", "transactional-outbox-starter")):
+        problem("goods POM must not acquire Debezium, Kafka, search, or Outbox dependencies")
+    return properties
+
+
+def deployment_self_test():
+    properties = read_properties(root / "deployment/cdc/debezium/application.properties")
+    validate_debezium_properties(properties)
+    mutations = (
+        ("debezium.source.table.include.list", "public.ad,public.spu"),
+        ("debezium.source.publication.autocreate.mode", "all_tables"),
+        ("debezium.source.skipped.operations", "t"),
+        ("debezium.source.skip.messages.without.change", "true"),
+        ("debezium.source.tombstones.on.delete", "true"),
+        ("debezium.format.value.schemas.enable", "true"),
+        ("debezium.sink.rabbitmq.autoCreateRoutingKey", "true"),
+        ("debezium.sink.rabbitmq.deliveryMode", "1"),
+        ("debezium.source.offset.storage.file.filename", "emptyDir/offsets.dat"),
+    )
+    for key, bad_value in mutations:
+        mutated = dict(properties)
+        mutated[key] = bad_value
+        try:
+            validate_debezium_properties(mutated)
+        except AssertionError:
+            continue
+        problem(f"deployment self-test accepted an invalid property: {key}={bad_value}")
+    if check_release_reference("debezium/server:latest"):
+        problem("deployment self-test accepted an unpinned latest image")
+    if not check_release_reference("registry.example/debezium/server@sha256:" + "a" * 64):
+        problem("deployment self-test rejected a pinned image fixture")
+    check_deployment_documents()
+    print("PASS: CDC profile defaults, source filters, fixed raw route, persistent offsets, and release-input mutations")
+
+
+def check_deployment():
+    check_deployment_documents()
+    print("PASS: CDC source/sink configuration and PostgreSQL/Rabbit/Kubernetes offline contracts")
+    print("RELEASE BLOCKED (expected): version/image digest and TEST-019–022 runtime evidence remain unprovided/Not run")
+
+
+def read_properties(path):
+    properties = {}
+    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            problem(f"invalid property line {path.relative_to(root)}:{line_number}")
+        key, value = line.split("=", 1)
+        if key in properties:
+            problem(f"duplicate property {key} in {path.relative_to(root)}")
+        properties[key.strip()] = value.strip()
+    return properties
+
+
+def validate_debezium_properties(properties):
+    exact = {
+        "debezium.source.connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "debezium.source.offset.storage": "org.apache.kafka.connect.storage.FileOffsetBackingStore",
+        "debezium.source.plugin.name": "pgoutput",
+        "debezium.source.publication.autocreate.mode": "disabled",
+        "debezium.source.schema.include.list": "public",
+        "debezium.source.table.include.list": "public.ad,public.spu,public.sku",
+        "debezium.source.snapshot.mode": "initial",
+        "debezium.source.provide.transaction.metadata": "true",
+        "debezium.source.skip.messages.without.change": "false",
+        "debezium.source.skipped.operations": "none",
+        "debezium.source.tombstones.on.delete": "false",
+        "debezium.source.heartbeat.interval.ms": "0",
+        "debezium.format.key": "json",
+        "debezium.format.key.schemas.enable": "false",
+        "debezium.format.value": "json",
+        "debezium.format.value.schemas.enable": "false",
+        "debezium.sink.type": "rabbitmq",
+        "debezium.sink.rabbitmq.exchange": "enjoyshop.cdc.raw.v1",
+        "debezium.sink.rabbitmq.routingKey": "master-data",
+        "debezium.sink.rabbitmq.routingKey.source": "static",
+        "debezium.sink.rabbitmq.routingKeyDurable": "true",
+        "debezium.sink.rabbitmq.autoCreateRoutingKey": "false",
+        "debezium.sink.rabbitmq.deliveryMode": "2",
+    }
+    for key, value in exact.items():
+        if properties.get(key) != value:
+            problem(f"Debezium property {key} must be {value!r}")
+    placeholders = {
+        "debezium.source.offset.storage.file.filename": "${CDC_OFFSET_FILE:/data/debezium/offsets/offsets.dat}",
+        "debezium.source.topic.prefix": "${CDC_SOURCE_NAME}",
+        "debezium.source.database.hostname": "${CDC_PG_PRIMARY_HOST}",
+        "debezium.source.database.port": "${CDC_PG_PRIMARY_PORT:5432}",
+        "debezium.source.database.user": "${CDC_PG_REPLICATION_USER}",
+        "debezium.source.database.password": "${CDC_PG_REPLICATION_PASSWORD}",
+        "debezium.source.database.dbname": "${CDC_DATABASE}",
+        "debezium.source.database.sslmode": "${CDC_PG_SSLMODE:verify-full}",
+        "debezium.source.database.sslrootcert": "${CDC_PG_SSLROOTCERT}",
+        "debezium.source.slot.name": "${CDC_SLOT_NAME}",
+        "debezium.source.publication.name": "${CDC_PUBLICATION_NAME}",
+        "debezium.sink.rabbitmq.connection.host": "${CDC_RABBIT_HOST}",
+        "debezium.sink.rabbitmq.connection.port": "${CDC_RABBIT_PORT:5672}",
+        "debezium.sink.rabbitmq.connection.username": "${CDC_RABBIT_USER}",
+        "debezium.sink.rabbitmq.connection.password": "${CDC_RABBIT_PASSWORD}",
+        "debezium.sink.rabbitmq.ackTimeout": "${CDC_RABBIT_CONFIRM_TIMEOUT_MS:30000}",
+    }
+    for key, value in placeholders.items():
+        if properties.get(key) != value:
+            problem(f"Debezium property {key} must remain a release input placeholder")
+    offset_file = properties.get("debezium.source.offset.storage.file.filename", "")
+    if "emptyDir" in offset_file or "MemoryOffsetBackingStore" in offset_file:
+        problem("Debezium offsets must use the documented persistent file path")
+    if any(key.startswith("debezium.transforms") for key in properties):
+        problem("raw Debezium before/after payload must not be removed by SMT configuration")
+    if any(value.lower() in ("password", "secret", "changeme", "admin")
+           for key, value in properties.items() if "password" in key.lower()):
+        problem("Debezium credentials must remain environment inputs")
+
+
+def check_release_reference(value):
+    return bool(re.fullmatch(r"[^\s@]+@sha256:[a-f0-9]{64}", value)) and "latest" not in value.lower()
+
+
+def check_deployment_documents():
+    paths = {
+        "properties": root / "deployment/cdc/debezium/application.properties",
+        "postgres": root / "deployment/cdc/postgres/replication-contract.md",
+        "rabbit": root / "deployment/cdc/rabbit/topology-contract.md",
+        "acceptance": root / "deployment/cdc/acceptance.md",
+        "readme": root / "deployment/cdc/README.md",
+        "verify": root / "scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-verify.sh",
+    }
+    for label, path in paths.items():
+        if not path.is_file():
+            problem(f"missing CDC deployment contract: {path.relative_to(root)}")
+    properties = read_properties(paths["properties"])
+    validate_debezium_properties(properties)
+    postgres = paths["postgres"].read_text(encoding="utf-8")
+    rabbit = paths["rabbit"].read_text(encoding="utf-8")
+    acceptance = paths["acceptance"].read_text(encoding="utf-8")
+    readme = paths["readme"].read_text(encoding="utf-8")
+    verify = paths["verify"].read_text(encoding="utf-8")
+    for token in ("pg_replication_slots", "restart_lsn", "confirmed_flush_lsn", "RPO", "fence",
+                  "publication.autocreate.mode=disabled"):
+        if token not in postgres:
+            problem(f"PostgreSQL contract is missing {token}")
+    for token in ("enjoyshop.cdc.raw.v1", "enjoyshop.sync.v1", "enjoyshop.cdc.dead.v1",
+                  "enjoyshop.cdc.unrouted.v1", "at-least-once", "reject-publish", "no consumer"):
+        if token not in rabbit:
+            problem(f"Rabbit topology contract is missing {token}")
+    for test_id in ("TEST-019", "TEST-020", "TEST-021", "TEST-022"):
+        if test_id not in acceptance:
+            problem(f"acceptance record is missing {test_id}")
+    if "deployment release is blocked" not in acceptance or "Not run" not in acceptance:
+        problem("acceptance record must keep live release blocked and manual tests Not run")
+    for input_name in ("CDC_SOURCE_NAME", "CDC_SOURCE_EPOCH", "CDC_RABBIT_VHOST", "sha256"):
+        if input_name not in readme and input_name not in acceptance:
+            problem(f"README/acceptance must declare {input_name} as a release input")
+    if "one active" not in readme or "persistent offset" not in readme or "NetworkPolicy" not in readme:
+        problem("README is missing the single-owner K8s, persistent offset, or network boundary")
+    if "--deployment" not in verify or "--self-test" not in verify:
+        problem("offline verifier does not expose the documented deployment modes")
+    for profile in ("application.yml", "application-dev.yml", "application-test.yml", "application-prod.yml"):
+        text = (root / module / "src/main/resources" / profile).read_text(encoding="utf-8")
+        if not re.search(r"(?m)^  cdc:\n    enabled: false\n    max-payload-bytes: 1048576\n    confirm-timeout: PT5S\n    source-registry: \{\}$", text):
+            problem(f"{profile} must keep the CDC source registry explicit and disabled by default")
+        if not re.search(r"(?m)^  rabbitmq:\n    publisher-confirm-type: correlated\n    publisher-returns: true$", text):
+            problem(f"{profile} lacks the Rabbit confirm/return settings")
+    for relative, expected_hash in (
+            ("src/main/java/top/egon/enjoyshop/goods/infrastructure/config/RabbitMqConfig.java",
+             "5d8f721d5a5a79718034e5be009c1ea615d2a8de7dbef47da8934e1dfada5ab5"),
+            ("src/main/java/top/egon/enjoyshop/goods/infrastructure/mq/MqRouteEnum.java",
+             "bdbb81af71feb66808b439666cafdf445ea7d9714c5c219f3947746277e99258")):
+        actual = hashlib.sha256((root / module / relative).read_bytes()).hexdigest()
+        if actual != expected_hash:
+            problem(f"original sample Rabbit file changed: {relative}")
+    pom = (root / module / "pom.xml").read_text(encoding="utf-8").lower()
+    if any(name in pom for name in ("debezium", "kafka-clients", "elasticsearch", "transactional-outbox-starter")):
+        problem("goods POM must not acquire Debezium, Kafka, search, or Outbox dependencies")
+    return properties, acceptance
+
+
+def deployment_self_test():
+    properties_path = root / "deployment/cdc/debezium/application.properties"
+    properties = read_properties(properties_path)
+    validate_debezium_properties(properties)
+    mutations = (
+        ("debezium.source.table.include.list", "public.ad,public.spu"),
+        ("debezium.source.publication.autocreate.mode", "all_tables"),
+        ("debezium.source.skipped.operations", "t"),
+        ("debezium.source.skip.messages.without.change", "true"),
+        ("debezium.source.tombstones.on.delete", "true"),
+        ("debezium.format.value.schemas.enable", "true"),
+        ("debezium.sink.rabbitmq.autoCreateRoutingKey", "true"),
+        ("debezium.sink.rabbitmq.deliveryMode", "1"),
+        ("debezium.source.offset.storage.file.filename", "emptyDir/offsets.dat"),
+    )
+    for key, bad_value in mutations:
+        mutated = dict(properties)
+        mutated[key] = bad_value
+        try:
+            validate_debezium_properties(mutated)
+        except AssertionError:
+            continue
+        problem(f"deployment self-test accepted an invalid property: {key}={bad_value}")
+    if check_release_reference("debezium/server@latest"):
+        problem("deployment self-test accepted an unpinned latest image")
+    if not check_release_reference("registry.example/debezium/server@sha256:" + "a" * 64):
+        problem("deployment self-test rejected a syntactically pinned image fixture")
+    check_deployment_documents()
+    print("PASS: disabled CDC defaults, preserved row images, fixed routes, persistent offsets, and release-gate mutation tests")
+
+
+def check_deployment():
+    _, acceptance = check_deployment_documents()
+    print("PASS: CDC server, PostgreSQL, Rabbit topology, profile, and offline acceptance contracts")
+    print("RELEASE BLOCKED (expected): version/image digest, environment inputs, and TEST-019–022 remain unprovided/Not run")
+
+
 if mode == "--self-test":
     native = """  - !READWRITE_SPLITTING\n    dataSourceGroups:\n      master_data:\n        writeDataSourceName: master_data_primary\n        readDataSourceNames: [master_data_replica_0]\n        transactionalReadQueryStrategy: PRIMARY\n      shard_0:\n        writeDataSourceName: shard_0_primary\n        readDataSourceNames: [shard_0_replica_0]\n        transactionalReadQueryStrategy: PRIMARY\n      shard_1:\n        writeDataSourceName: shard_1_primary\n        readDataSourceNames: [shard_1_replica_0]\n        transactionalReadQueryStrategy: PRIMARY\n  - !SINGLE\n""" + "\n".join(f"      - master_data.public.{table}" for table in sorted(single_tables)) + "\n  - !SHARDING\n" + "\n".join(
         f"      actualDataNodes: shard_0.public.{table}_0,shard_0.public.{table}_1,shard_1.public.{table}_0,shard_1.public.{table}_1"
@@ -237,6 +588,9 @@ if mode == "--self-test":
             continue
         problem("self-test accepted an invalid read/write/topology/history fixture")
     print("PASS: valid NATIVE/profile fixture accepted; missing replica, wrong role, and changed history rejected")
+    deployment_self_test()
+elif mode == "--deployment":
+    check_deployment()
 elif mode == "--topology":
     native_path = root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/egon-ss-readwrite.yml"
     profile_paths = {

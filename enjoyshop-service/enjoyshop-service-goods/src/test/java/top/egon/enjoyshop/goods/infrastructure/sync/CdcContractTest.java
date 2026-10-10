@@ -11,6 +11,8 @@ import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -289,6 +291,54 @@ class CdcContractTest {
             Map<String, CdcChangeStrategy> strategies = context.getBean("cdcChangeStrategies", Map.class);
             assertThat(strategies.keySet()).containsExactlyInAnyOrder("ad", "spu", "sku");
         }
+    }
+
+    @Test
+    void deploymentConfigPreservesBeforeAfter() throws IOException {
+        Path root = repositoryRoot();
+        Path config = root.resolve("deployment/cdc/debezium/application.properties");
+        assertThat(Files.isRegularFile(config)).as("Debezium Server configuration template").isTrue();
+        String properties = Files.readString(config);
+        assertThat(properties)
+                .contains("debezium.source.plugin.name=pgoutput")
+                .contains("debezium.source.publication.autocreate.mode=disabled")
+                .contains("debezium.source.snapshot.mode=initial")
+                .contains("debezium.source.table.include.list=public.ad,public.spu,public.sku")
+                .contains("debezium.source.provide.transaction.metadata=true")
+                .contains("debezium.source.skip.messages.without.change=false")
+                .contains("debezium.source.skipped.operations=none")
+                .contains("debezium.source.tombstones.on.delete=false")
+                .contains("debezium.format.value.schemas.enable=false")
+                .contains("debezium.sink.rabbitmq.autoCreateRoutingKey=false")
+                .contains("debezium.sink.rabbitmq.deliveryMode=2")
+                .contains("debezium.sink.rabbitmq.exchange=enjoyshop.cdc.raw.v1")
+                .contains("debezium.sink.rabbitmq.routingKey=master-data")
+                .contains("debezium.source.offset.storage.file.filename=");
+        assertThat(properties).doesNotContain("debezium.transforms=")
+                .doesNotContain("debezium.sink.type=kafka");
+    }
+
+    @Test
+    void inputGatesAreExplicitAndRuntimeEvidenceRemainsUnrun() throws IOException {
+        Path root = repositoryRoot();
+        String postgres = Files.readString(root.resolve("deployment/cdc/postgres/replication-contract.md"));
+        String rabbit = Files.readString(root.resolve("deployment/cdc/rabbit/topology-contract.md"));
+        String acceptance = Files.readString(root.resolve("deployment/cdc/acceptance.md"));
+        String readme = Files.readString(root.resolve("deployment/cdc/README.md"));
+        Path verifierPath = root.resolve("deployment/cdc/check.sh");
+        if (!Files.isRegularFile(verifierPath)) {
+            verifierPath = root.resolve("scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-verify.sh");
+        }
+        String verifier = Files.readString(verifierPath);
+
+        assertThat(postgres).contains("primary", "standby", "pg_replication_slots", "restart_lsn",
+                "confirmed_flush_lsn", "RPO", "fence");
+        assertThat(rabbit).contains("enjoyshop.cdc.raw.v1", "enjoyshop.sync.v1", "enjoyshop.cdc.dead.v1",
+                "enjoyshop.cdc.unrouted.v1", "at-least-once", "reject-publish", "no consumer");
+        assertThat(acceptance).contains("TEST-019", "TEST-020", "TEST-021", "TEST-022", "Not run",
+                "release is blocked");
+        assertThat(readme).contains("one active", "persistent offset", "NetworkPolicy", "TEST-019");
+        assertThat(verifier).contains("--deployment", "--self-test", "CDC_SOURCE_NAME", "CDC_SOURCE_EPOCH");
     }
 
     @Test
@@ -586,6 +636,18 @@ class CdcContractTest {
     private static ProductCdcChangeStrategy productStrategy(ValidationUtils validation) {
         return new ProductCdcChangeStrategy(new CdcEventIdentityComponent(objectMapper()),
                 new ProductRefreshEventConverterImpl(), validation);
+    }
+
+    private static Path repositoryRoot() {
+        Path candidate = Path.of("").toAbsolutePath().normalize();
+        while (candidate != null) {
+            if (Files.isDirectory(candidate.resolve("deployment"))
+                    && Files.isDirectory(candidate.resolve("enjoyshop-service"))) {
+                return candidate;
+            }
+            candidate = candidate.getParent();
+        }
+        throw new IllegalStateException("repository root could not be located from the test working directory");
     }
 
     private static CdcSourceProperties sourceProperties() {
