@@ -4,13 +4,9 @@ set -euo pipefail
 repo_root="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel)"
 mode="${1:-}"
 case "$mode" in
-  --self-test|--topology|--schema|--deployment) ;;
-  --standards|--final)
-    printf 'CHECK_PENDING: %s is added by its owning Plan Step\n' "$mode" >&2
-    exit 77
-    ;;
+  --self-test|--topology|--schema|--deployment|--standards|--final) ;;
   *)
-    printf 'usage: %s --self-test|--topology|--schema|--deployment\n' "$0" >&2
+    printf 'usage: %s --self-test|--topology|--schema|--deployment|--standards|--final\n' "$0" >&2
     exit 2
     ;;
 esac
@@ -281,182 +277,6 @@ def validate_debezium_properties(properties):
         problem("Debezium offsets must use the documented persistent file path")
     if any(key.startswith("debezium.transforms") for key in properties):
         problem("raw Debezium before/after payload must not be removed by SMT configuration")
-    for key, value in properties.items():
-        if "password" in key.lower() and not re.fullmatch(r"\$\{CDC_[A-Z0-9_]+\}", value):
-            problem(f"Debezium credential {key} must remain an environment reference")
-
-
-def check_release_reference(reference):
-    return bool(re.fullmatch(r"[^\s@]+@sha256:[a-f0-9]{64}", reference)) and "latest" not in reference.lower()
-
-
-def check_deployment_documents():
-    paths = {
-        "properties": root / "deployment/cdc/debezium/application.properties",
-        "postgres": root / "deployment/cdc/postgres/replication-contract.md",
-        "rabbit": root / "deployment/cdc/rabbit/topology-contract.md",
-        "acceptance": root / "deployment/cdc/acceptance.md",
-        "readme": root / "deployment/cdc/README.md",
-        "verify": root / "scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-verify.sh",
-    }
-    for path in paths.values():
-        if not path.is_file():
-            problem(f"missing CDC deployment contract: {path.relative_to(root)}")
-    properties = read_properties(paths["properties"])
-    validate_debezium_properties(properties)
-    postgres = paths["postgres"].read_text(encoding="utf-8")
-    rabbit = paths["rabbit"].read_text(encoding="utf-8")
-    acceptance = paths["acceptance"].read_text(encoding="utf-8")
-    readme = paths["readme"].read_text(encoding="utf-8")
-    verify = paths["verify"].read_text(encoding="utf-8")
-    for token in ("pg_replication_slots", "restart_lsn", "confirmed_flush_lsn", "RPO", "fence",
-                  "publication.autocreate.mode=disabled"):
-        if token not in postgres:
-            problem(f"PostgreSQL contract is missing {token}")
-    for token in ("enjoyshop.cdc.raw.v1", "enjoyshop.sync.v1", "enjoyshop.cdc.dead.v1",
-                  "enjoyshop.cdc.unrouted.v1", "at-least-once", "reject-publish", "no consumer"):
-        if token not in rabbit:
-            problem(f"Rabbit topology contract is missing {token}")
-    for test_id in ("TEST-019", "TEST-020", "TEST-021", "TEST-022"):
-        if test_id not in acceptance:
-            problem(f"acceptance record is missing {test_id}")
-    if "deployment release is blocked" not in acceptance or "Not run" not in acceptance:
-        problem("acceptance record must keep live release blocked and manual tests Not run")
-    for input_name in ("CDC_SOURCE_NAME", "CDC_SOURCE_EPOCH", "CDC_RABBIT_VHOST", "sha256"):
-        if input_name not in readme and input_name not in acceptance:
-            problem(f"README/acceptance must declare {input_name} as a release input")
-    if "one active" not in readme or "persistent offset" not in readme or "NetworkPolicy" not in readme:
-        problem("README is missing the single-owner K8s, persistent offset, or network boundary")
-    if "--deployment" not in verify or "--self-test" not in verify:
-        problem("offline verifier does not expose the documented deployment modes")
-    for profile in ("application.yml", "application-dev.yml", "application-test.yml", "application-prod.yml"):
-        text = (root / module / "src/main/resources" / profile).read_text(encoding="utf-8")
-        cdc_pattern = r"(?m)^  cdc:\n    enabled: false\n    max-payload-bytes: 1048576\n    confirm-timeout: PT5S\n    source-registry: \{\}$"
-        rabbit_pattern = r"(?m)^  rabbitmq:\n    publisher-confirm-type: correlated\n    publisher-returns: true$"
-        if not re.search(cdc_pattern, text):
-            problem(f"{profile} must keep the CDC source registry explicit and disabled by default")
-        if not re.search(rabbit_pattern, text):
-            problem(f"{profile} lacks the Rabbit confirm/return settings")
-    for relative, expected_hash in (
-            ("src/main/java/top/egon/enjoyshop/goods/infrastructure/config/RabbitMqConfig.java",
-             "5d8f721d5a5a79718034e5be009c1ea615d2a8de7dbef47da8934e1dfada5ab5"),
-            ("src/main/java/top/egon/enjoyshop/goods/infrastructure/mq/MqRouteEnum.java",
-             "bdbb81af71feb66808b439666cafdf445ea7d9714c5c219f3947746277e99258")):
-        actual = hashlib.sha256((root / module / relative).read_bytes()).hexdigest()
-        if actual != expected_hash:
-            problem(f"original sample Rabbit file changed: {relative}")
-    pom = (root / module / "pom.xml").read_text(encoding="utf-8").lower()
-    if any(name in pom for name in ("debezium", "kafka-clients", "elasticsearch", "transactional-outbox-starter")):
-        problem("goods POM must not acquire Debezium, Kafka, search, or Outbox dependencies")
-    return properties
-
-
-def deployment_self_test():
-    properties = read_properties(root / "deployment/cdc/debezium/application.properties")
-    validate_debezium_properties(properties)
-    mutations = (
-        ("debezium.source.table.include.list", "public.ad,public.spu"),
-        ("debezium.source.publication.autocreate.mode", "all_tables"),
-        ("debezium.source.skipped.operations", "t"),
-        ("debezium.source.skip.messages.without.change", "true"),
-        ("debezium.source.tombstones.on.delete", "true"),
-        ("debezium.format.value.schemas.enable", "true"),
-        ("debezium.sink.rabbitmq.autoCreateRoutingKey", "true"),
-        ("debezium.sink.rabbitmq.deliveryMode", "1"),
-        ("debezium.source.offset.storage.file.filename", "emptyDir/offsets.dat"),
-    )
-    for key, bad_value in mutations:
-        mutated = dict(properties)
-        mutated[key] = bad_value
-        try:
-            validate_debezium_properties(mutated)
-        except AssertionError:
-            continue
-        problem(f"deployment self-test accepted an invalid property: {key}={bad_value}")
-    if check_release_reference("debezium/server:latest"):
-        problem("deployment self-test accepted an unpinned latest image")
-    if not check_release_reference("registry.example/debezium/server@sha256:" + "a" * 64):
-        problem("deployment self-test rejected a pinned image fixture")
-    check_deployment_documents()
-    print("PASS: CDC profile defaults, source filters, fixed raw route, persistent offsets, and release-input mutations")
-
-
-def check_deployment():
-    check_deployment_documents()
-    print("PASS: CDC source/sink configuration and PostgreSQL/Rabbit/Kubernetes offline contracts")
-    print("RELEASE BLOCKED (expected): version/image digest and TEST-019–022 runtime evidence remain unprovided/Not run")
-
-
-def read_properties(path):
-    properties = {}
-    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            problem(f"invalid property line {path.relative_to(root)}:{line_number}")
-        key, value = line.split("=", 1)
-        if key in properties:
-            problem(f"duplicate property {key} in {path.relative_to(root)}")
-        properties[key.strip()] = value.strip()
-    return properties
-
-
-def validate_debezium_properties(properties):
-    exact = {
-        "debezium.source.connector.class": "io.debezium.connector.postgresql.PostgresConnector",
-        "debezium.source.offset.storage": "org.apache.kafka.connect.storage.FileOffsetBackingStore",
-        "debezium.source.plugin.name": "pgoutput",
-        "debezium.source.publication.autocreate.mode": "disabled",
-        "debezium.source.schema.include.list": "public",
-        "debezium.source.table.include.list": "public.ad,public.spu,public.sku",
-        "debezium.source.snapshot.mode": "initial",
-        "debezium.source.provide.transaction.metadata": "true",
-        "debezium.source.skip.messages.without.change": "false",
-        "debezium.source.skipped.operations": "none",
-        "debezium.source.tombstones.on.delete": "false",
-        "debezium.source.heartbeat.interval.ms": "0",
-        "debezium.format.key": "json",
-        "debezium.format.key.schemas.enable": "false",
-        "debezium.format.value": "json",
-        "debezium.format.value.schemas.enable": "false",
-        "debezium.sink.type": "rabbitmq",
-        "debezium.sink.rabbitmq.exchange": "enjoyshop.cdc.raw.v1",
-        "debezium.sink.rabbitmq.routingKey": "master-data",
-        "debezium.sink.rabbitmq.routingKey.source": "static",
-        "debezium.sink.rabbitmq.routingKeyDurable": "true",
-        "debezium.sink.rabbitmq.autoCreateRoutingKey": "false",
-        "debezium.sink.rabbitmq.deliveryMode": "2",
-    }
-    for key, value in exact.items():
-        if properties.get(key) != value:
-            problem(f"Debezium property {key} must be {value!r}")
-    placeholders = {
-        "debezium.source.offset.storage.file.filename": "${CDC_OFFSET_FILE:/data/debezium/offsets/offsets.dat}",
-        "debezium.source.topic.prefix": "${CDC_SOURCE_NAME}",
-        "debezium.source.database.hostname": "${CDC_PG_PRIMARY_HOST}",
-        "debezium.source.database.port": "${CDC_PG_PRIMARY_PORT:5432}",
-        "debezium.source.database.user": "${CDC_PG_REPLICATION_USER}",
-        "debezium.source.database.password": "${CDC_PG_REPLICATION_PASSWORD}",
-        "debezium.source.database.dbname": "${CDC_DATABASE}",
-        "debezium.source.database.sslmode": "${CDC_PG_SSLMODE:verify-full}",
-        "debezium.source.database.sslrootcert": "${CDC_PG_SSLROOTCERT}",
-        "debezium.source.slot.name": "${CDC_SLOT_NAME}",
-        "debezium.source.publication.name": "${CDC_PUBLICATION_NAME}",
-        "debezium.sink.rabbitmq.connection.host": "${CDC_RABBIT_HOST}",
-        "debezium.sink.rabbitmq.connection.port": "${CDC_RABBIT_PORT:5672}",
-        "debezium.sink.rabbitmq.connection.username": "${CDC_RABBIT_USER}",
-        "debezium.sink.rabbitmq.connection.password": "${CDC_RABBIT_PASSWORD}",
-        "debezium.sink.rabbitmq.ackTimeout": "${CDC_RABBIT_CONFIRM_TIMEOUT_MS:30000}",
-    }
-    for key, value in placeholders.items():
-        if properties.get(key) != value:
-            problem(f"Debezium property {key} must remain a release input placeholder")
-    offset_file = properties.get("debezium.source.offset.storage.file.filename", "")
-    if "emptyDir" in offset_file or "MemoryOffsetBackingStore" in offset_file:
-        problem("Debezium offsets must use the documented persistent file path")
-    if any(key.startswith("debezium.transforms") for key in properties):
-        problem("raw Debezium before/after payload must not be removed by SMT configuration")
     if any(value.lower() in ("password", "secret", "changeme", "admin")
            for key, value in properties.items() if "password" in key.lower()):
         problem("Debezium credentials must remain environment inputs")
@@ -467,13 +287,16 @@ def check_release_reference(value):
 
 
 def check_deployment_documents():
+    verifier = root / "deployment/cdc/check.sh"
+    if not verifier.is_file():
+        verifier = root / "scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-verify.sh"
     paths = {
         "properties": root / "deployment/cdc/debezium/application.properties",
         "postgres": root / "deployment/cdc/postgres/replication-contract.md",
         "rabbit": root / "deployment/cdc/rabbit/topology-contract.md",
         "acceptance": root / "deployment/cdc/acceptance.md",
         "readme": root / "deployment/cdc/README.md",
-        "verify": root / "scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-verify.sh",
+        "verify": verifier,
     }
     for label, path in paths.items():
         if not path.is_file():
@@ -562,6 +385,153 @@ def check_deployment():
     print("RELEASE BLOCKED (expected): version/image digest, environment inputs, and TEST-019–022 remain unprovided/Not run")
 
 
+def check_topology():
+    native_path = root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/egon-ss-readwrite.yml"
+    profile_paths = {
+        "application.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/application.yml",
+        "application-dev.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/application-dev.yml",
+        "application-test.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/application-test.yml",
+        "application-prod.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/application-prod.yml",
+        "egon-mybatis-plus-sharding.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/egon-mybatis-plus-sharding.yml",
+    }
+    for path in [native_path, *profile_paths.values()]:
+        if not path.is_file():
+            problem(f"missing NATIVE configuration path {path.relative_to(root)}")
+    profile_texts = {name: path.read_text(encoding="utf-8") for name, path in profile_paths.items()}
+    old_manifest_prefix = root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/db/egon-mp/repository-manifest.json"
+    old_ddl = root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/db/egon-mp"
+    if not old_manifest_prefix.is_file() or not old_ddl.is_dir():
+        problem("managed SQL/manifest baseline missing")
+    for old_path in sorted(old_ddl.glob("V*.sql")):
+        result = subprocess.run(["git", "diff", "--quiet", "HEAD", "--", str(old_path.relative_to(root))], cwd=root)
+        if result.returncode != 0:
+            problem(f"immutable database history changed: {old_path.relative_to(root)}")
+    check_layout(native_path.read_text(encoding="utf-8"), profile_texts, "unchanged:HEAD", "unchanged:HEAD")
+    generated_test = root / "enjoyshop-service/enjoyshop-service-goods/src/test/java/top/egon/enjoyshop/goods/infrastructure/config/NativeReadwriteContractTest.java"
+    if not generated_test.is_file() or "nativeProfilesAreParseableWithoutConnections" not in generated_test.read_text(encoding="utf-8"):
+        problem("NativeReadwriteContractTest is absent or incomplete")
+    print("PASS: native groups, SQL-backed tables, six physical roles, five profile resources, and immutable DDL prefix")
+
+
+def changed_repository_paths(baseline):
+    changed = set()
+    commands = (
+        ["git", "diff", "--name-only", f"{baseline}..HEAD"],
+        ["git", "diff", "--name-only"],
+        ["git", "diff", "--cached", "--name-only"],
+    )
+    for command in commands:
+        output = subprocess.check_output(command, cwd=root, text=True)
+        changed.update(path for path in output.splitlines() if path)
+    untracked = subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard"], cwd=root, text=True)
+    for path in untracked.splitlines():
+        if path and path not in (
+                "docs/egon/plan/2026-10-10-16-13-postgresql-cdc-advertisement-implementation.md",
+                "docs/egon/spec/2026-10-10-14-48-postgresql-cdc-advertisement-synchronization.md"):
+            changed.add(path)
+    return changed
+
+
+def check_scope():
+    plan_path = root / "docs/egon/plan/2026-10-10-16-13-postgresql-cdc-advertisement-implementation.md"
+    if not plan_path.is_file():
+        problem("approved implementation Plan is missing")
+    plan = plan_path.read_text(encoding="utf-8")
+    baseline_match = re.search(r"(?m)^\| Baseline Revision \|[^|]*?([0-9a-f]{40})", plan)
+    if baseline_match is None:
+        problem("Plan baseline revision is missing")
+    baseline = baseline_match.group(1)
+    planned = set()
+    step_starts = list(re.finditer(r"(?m)^### Step [1-9] —", plan))
+    for index, match in enumerate(step_starts):
+        end = step_starts[index + 1].start() if index + 1 < len(step_starts) else plan.find("## 8. Test", match.start())
+        if end < 0:
+            end = len(plan)
+        section = plan[match.start():end]
+        for line in section.splitlines():
+            if line.startswith("- Commit paths:"):
+                planned.update(re.findall(r"`([^`]+)`", line))
+    changed = changed_repository_paths(baseline)
+    unexpected = sorted(changed - planned)
+    if unexpected:
+        problem(f"repository diff contains paths outside the approved Plan: {unexpected}")
+    if subprocess.run(["git", "diff", "--quiet"], cwd=root).returncode != 0:
+        problem("working tree has unstaged edits outside the staged final scope")
+    print(f"PASS: {len(changed)} changed paths match the approved Step commit-path inventory")
+
+
+def check_standards():
+    scratch_paths = (
+        root / "scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-verify.sh",
+        root / "scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-prepare-ad.sh",
+    )
+    final_script_paths = (
+        root / "deployment/cdc/check.sh",
+        root / module / "codegen/prepare-ad.sh",
+    )
+    if any(path.exists() for path in scratch_paths):
+        problem("temporary CDC/codegen verifier scripts remain under scripts/work")
+    for path in final_script_paths:
+        if not path.is_file():
+            problem(f"verification script was not moved to its owning subsystem: {path.relative_to(root)}")
+    goods = root / module / "src/main/java/top/egon/enjoyshop/goods"
+    domain_files = [
+        goods / "domain/ad/AdBO.java",
+        goods / "domain/ad/AdDomainQuery.java",
+        goods / "domain/ad/AdDomainService.java",
+        goods / "domain/ad/AdEligibilitySpecification.java",
+        *sorted((goods / "domain/sync").glob("*.java")),
+    ]
+    forbidden_domain = ("org.springframework.", "org.springframework.security", "org.springframework.amqp.",
+                        "org.apache.ibatis.", "com.baomidou.mybatisplus.", "com.rabbitmq.",
+                        "infrastructure.", "JsonNode")
+    for path in domain_files:
+        if not path.is_file():
+            problem(f"missing expected Domain source {path.relative_to(root)}")
+        text = path.read_text(encoding="utf-8")
+        for marker in forbidden_domain:
+            if marker in text:
+                problem(f"Domain source {path.relative_to(root)} references forbidden type/package {marker}")
+
+    changed = changed_repository_paths("7e6a5065cae81836cfa6744f51fba686f8f8df92")
+    forbidden_java = ("java.util.Date", "java.util.Calendar", "SimpleDateFormat", "com.google.gson",
+                      "com.alibaba.fastjson", "BeanUtils.copyProperties")
+    for relative in changed:
+        if not relative.endswith(".java"):
+            continue
+        path = root / relative
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for marker in forbidden_java:
+            if marker in text:
+                problem(f"changed Java source {relative} uses forbidden utility {marker}")
+
+    pom = (root / module / "pom.xml").read_text(encoding="utf-8").lower()
+    if any(name in pom for name in ("debezium", "kafka-clients", "elasticsearch", "transactional-outbox-starter")):
+        problem("goods POM contains an out-of-scope CDC/search dependency")
+    converter_paths = (
+        "top/egon/enjoyshop/goods/infrastructure/ad/converter/AdPersistenceConverterImpl.class",
+        "top/egon/enjoyshop/goods/infrastructure/sync/AdInvalidationEventConverterImpl.class",
+        "top/egon/enjoyshop/goods/infrastructure/sync/ProductRefreshEventConverterImpl.class",
+    )
+    classes = root / module / "target/classes"
+    for relative in converter_paths:
+        if not (classes / relative).is_file():
+            problem(f"generated MapStruct converter is missing: {relative}")
+    print("PASS: Domain boundaries, changed Java utility rules, dependency scope, and MapStruct outputs")
+
+
+def check_final():
+    check_topology()
+    check_schema()
+    check_deployment_documents()
+    check_standards()
+    check_scope()
+    print("PASS: final offline conformance audit; TEST-019–022 remain Not run and release is blocked")
+
+
 if mode == "--self-test":
     native = """  - !READWRITE_SPLITTING\n    dataSourceGroups:\n      master_data:\n        writeDataSourceName: master_data_primary\n        readDataSourceNames: [master_data_replica_0]\n        transactionalReadQueryStrategy: PRIMARY\n      shard_0:\n        writeDataSourceName: shard_0_primary\n        readDataSourceNames: [shard_0_replica_0]\n        transactionalReadQueryStrategy: PRIMARY\n      shard_1:\n        writeDataSourceName: shard_1_primary\n        readDataSourceNames: [shard_1_replica_0]\n        transactionalReadQueryStrategy: PRIMARY\n  - !SINGLE\n""" + "\n".join(f"      - master_data.public.{table}" for table in sorted(single_tables)) + "\n  - !SHARDING\n" + "\n".join(
         f"      actualDataNodes: shard_0.public.{table}_0,shard_0.public.{table}_1,shard_1.public.{table}_0,shard_1.public.{table}_1"
@@ -592,31 +562,12 @@ if mode == "--self-test":
 elif mode == "--deployment":
     check_deployment()
 elif mode == "--topology":
-    native_path = root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/egon-ss-readwrite.yml"
-    profile_paths = {
-        "application.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/application.yml",
-        "application-dev.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/application-dev.yml",
-        "application-test.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/application-test.yml",
-        "application-prod.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/application-prod.yml",
-        "egon-mybatis-plus-sharding.yml": root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/egon-mybatis-plus-sharding.yml",
-    }
-    for path in [native_path, *profile_paths.values()]:
-        if not path.is_file():
-            problem(f"missing NATIVE configuration path {path.relative_to(root)}")
-    profile_texts = {name: path.read_text(encoding="utf-8") for name, path in profile_paths.items()}
-    old_manifest_prefix = root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/db/egon-mp/repository-manifest.json"
-    old_ddl = root / "enjoyshop-service/enjoyshop-service-goods/src/main/resources/db/egon-mp"
-    if not old_manifest_prefix.is_file() or not old_ddl.is_dir():
-        problem("managed SQL/manifest baseline missing")
-    for old_path in sorted(old_ddl.glob("V*.sql")):
-        result = subprocess.run(["git", "diff", "--quiet", "HEAD", "--", str(old_path.relative_to(root))], cwd=root)
-        if result.returncode != 0:
-            problem(f"immutable database history changed: {old_path.relative_to(root)}")
-    check_layout(native_path.read_text(encoding="utf-8"), profile_texts, "unchanged:HEAD", "unchanged:HEAD")
-    generated_test = root / "enjoyshop-service/enjoyshop-service-goods/src/test/java/top/egon/enjoyshop/goods/infrastructure/config/NativeReadwriteContractTest.java"
-    if not generated_test.is_file() or "nativeProfilesAreParseableWithoutConnections" not in generated_test.read_text(encoding="utf-8"):
-        problem("NativeReadwriteContractTest is absent or incomplete")
-    print("PASS: native groups, SQL-backed tables, six physical roles, five profile resources, and immutable DDL prefix")
-else:
+    check_topology()
+elif mode == "--schema":
     check_schema()
+elif mode == "--standards":
+    check_standards()
+elif mode == "--final":
+    check_final()
+
 PY

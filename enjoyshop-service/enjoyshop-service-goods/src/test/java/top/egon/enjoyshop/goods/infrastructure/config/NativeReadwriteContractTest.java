@@ -4,6 +4,8 @@ import org.apache.shardingsphere.driver.yaml.YamlJDBCConfiguration;
 import org.apache.shardingsphere.infra.util.yaml.YamlEngine;
 import org.apache.shardingsphere.readwritesplitting.yaml.config.YamlReadwriteSplittingRuleConfiguration;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.amqp.RabbitProperties;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -26,12 +28,16 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -130,6 +136,96 @@ class NativeReadwriteContractTest {
                 .isEqualTo("bdbb81af71feb66808b439666cafdf445ea7d9714c5c219f3947746277e99258");
         String pom = Files.readString(Path.of("pom.xml"), StandardCharsets.UTF_8).toLowerCase(java.util.Locale.ROOT);
         assertThat(pom).doesNotContain("debezium", "kafka-clients", "elasticsearch", "transactional-outbox-starter");
+    }
+
+    @Test
+    void allApprovedFilesPresent() throws IOException {
+        Path root = projectRoot();
+        Path module = root.resolve("enjoyshop-service/enjoyshop-service-goods");
+        List<Path> required = List.of(
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/domain/ad/AdBO.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/domain/ad/AdDomainQuery.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/domain/sync/CdcRecordBO.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/domain/sync/CdcSourceCursorBO.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/domain/sync/AdCacheInvalidationEvent.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/domain/sync/ProductRefreshRequestedEvent.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/infrastructure/config/CdcRabbitConfiguration.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/infrastructure/sync/CdcEventPublisher.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/adapter/sync/CdcRawConsumer.java"),
+                module.resolve("src/main/java/top/egon/enjoyshop/goods/adapter/sync/AdCacheInvalidationConsumer.java"),
+                root.resolve("deployment/cdc/debezium/application.properties"),
+                root.resolve("deployment/cdc/postgres/replication-contract.md"),
+                root.resolve("deployment/cdc/rabbit/topology-contract.md"),
+                root.resolve("deployment/cdc/acceptance.md"),
+                root.resolve("deployment/cdc/README.md"),
+                root.resolve("deployment/cdc/check.sh"),
+                module.resolve("codegen/prepare-ad.sh"));
+        assertThat(required).allSatisfy(path -> assertThat(Files.isRegularFile(path))
+                .as("approved implementation artifact %s", path).isTrue());
+        Path infrastructure = module.resolve("src/main/java/top/egon/enjoyshop/goods/infrastructure");
+        assertThat(javaFileCount(infrastructure, "PO.java")).isEqualTo(14);
+        assertThat(javaFileCount(infrastructure, "DAO.java")).isEqualTo(14);
+        assertThat(javaFileCount(infrastructure, "Repository.java")).isEqualTo(14);
+        assertThat(javaFileCount(infrastructure, "DomainServiceImpl.java")).isEqualTo(10);
+    }
+
+    @Test
+    void qualifiedConstructorBeans() throws ReflectiveOperationException {
+        for (String name : List.of(
+                "top.egon.enjoyshop.goods.application.ad.AdManageImpl",
+                "top.egon.enjoyshop.goods.infrastructure.ad.service.impl.AdDomainServiceImpl",
+                "top.egon.enjoyshop.goods.infrastructure.ad.repo.AdRepository",
+                "top.egon.enjoyshop.goods.infrastructure.sync.CdcEventPublisher",
+                "top.egon.enjoyshop.goods.infrastructure.sync.AdCdcChangeStrategy",
+                "top.egon.enjoyshop.goods.infrastructure.sync.ProductCdcChangeStrategy",
+                "top.egon.enjoyshop.goods.adapter.sync.CdcRawConsumer",
+                "top.egon.enjoyshop.goods.adapter.sync.AdCacheInvalidationConsumer")) {
+            assertQualifiedConstructor(Class.forName(name));
+        }
+    }
+
+    @Test
+    void noForbiddenImports() throws IOException, ReflectiveOperationException {
+        Path goods = projectRoot().resolve("enjoyshop-service/enjoyshop-service-goods/src/main/java/top/egon/enjoyshop/goods");
+        List<Path> sourceFiles = new ArrayList<>();
+        for (String file : List.of("domain/ad/AdBO.java", "domain/ad/AdDomainQuery.java",
+                "domain/ad/AdDomainService.java", "domain/ad/AdEligibilitySpecification.java")) {
+            sourceFiles.add(goods.resolve(file));
+        }
+        for (String directory : List.of("domain/sync")) {
+            try (var files = Files.newDirectoryStream(goods.resolve(directory), "*.java")) {
+                files.forEach(sourceFiles::add);
+            }
+        }
+        List<String> forbidden = List.of("org.springframework.", "org.apache.ibatis.",
+                "com.baomidou.mybatisplus.", "org.springframework.security", "org.springframework.amqp.",
+                "com.rabbitmq.", "infrastructure.", "JsonNode");
+        for (Path source : sourceFiles) {
+            String text = Files.readString(source);
+            for (String marker : forbidden) {
+                assertThat(text).as("forbidden dependency or API %s in %s", marker, source)
+                        .doesNotContain(marker);
+            }
+        }
+        // AdStatusEnum retains the existing MP code mapping required by AdPO.status.
+        assertThat(top.egon.enjoyshop.goods.domain.ad.AdStatusEnum.class.getDeclaredField("code")
+                .isAnnotationPresent(com.baomidou.mybatisplus.annotation.EnumValue.class)).isTrue();
+        String modulePom = Files.readString(projectRoot().resolve("enjoyshop-service/enjoyshop-service-goods/pom.xml"));
+        assertThat(modulePom.toLowerCase(java.util.Locale.ROOT))
+                .doesNotContain("debezium", "kafka-clients", "elasticsearch", "transactional-outbox-starter");
+    }
+
+    @Test
+    void noTemporaryTypes() {
+        Path root = projectRoot();
+        Path java = root.resolve("enjoyshop-service/enjoyshop-service-goods/src/main/java/top/egon/enjoyshop/goods");
+        assertThat(Files.exists(root.resolve("scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-verify.sh")))
+                .isFalse();
+        assertThat(Files.exists(root.resolve("scripts/work/2026-10-10-16-13-postgresql-cdc-advertisement-implementation-prepare-ad.sh")))
+                .isFalse();
+        assertThat(Files.exists(java.resolve("adapter/ad/AdController.java"))).isFalse();
+        assertThat(Files.exists(java.resolve("infrastructure/ad/AdPersistenceConverter.java"))).isFalse();
+        assertThat(Files.exists(java.resolve("infrastructure/ad/catalog/AdCatalogSource.java"))).isFalse();
     }
 
     @Test
@@ -240,6 +336,46 @@ class NativeReadwriteContractTest {
     private static String sha256(Path path) throws IOException, NoSuchAlgorithmException {
         return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                 .digest(Files.readAllBytes(path)));
+    }
+
+    private static long javaFileCount(Path root, String suffix) throws IOException {
+        try (var paths = Files.walk(root)) {
+            return paths.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(suffix))
+                    .count();
+        }
+    }
+
+    private static Path projectRoot() {
+        Path current = Path.of("").toAbsolutePath().normalize();
+        while (current != null) {
+            if (Files.isDirectory(current.resolve("deployment"))
+                    && Files.isDirectory(current.resolve("enjoyshop-service"))) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        throw new IllegalStateException("repository root could not be located");
+    }
+
+    private static void assertQualifiedConstructor(Class<?> type) {
+        List<Field> dependencies = Arrays.stream(type.getDeclaredFields())
+                .filter(field -> Modifier.isFinal(field.getModifiers()) && !Modifier.isStatic(field.getModifiers()))
+                .toList();
+        assertThat(dependencies).as("final constructor dependencies for %s", type.getName()).isNotEmpty();
+        for (Field dependency : dependencies) {
+            assertThat(dependency.isAnnotationPresent(Qualifier.class))
+                    .as("field qualifier %s.%s", type.getSimpleName(), dependency.getName()).isTrue();
+            assertThat(dependency.isAnnotationPresent(Autowired.class))
+                    .as("field injection %s.%s", type.getSimpleName(), dependency.getName()).isFalse();
+        }
+        Constructor<?> constructor = Arrays.stream(type.getDeclaredConstructors())
+                .filter(candidate -> candidate.getParameterCount() == dependencies.size())
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("missing required constructor for " + type.getName()));
+        assertThat(Arrays.stream(constructor.getParameters())
+                .allMatch(parameter -> parameter.isAnnotationPresent(Qualifier.class)))
+                .as("constructor parameter qualifiers for %s", type.getName()).isTrue();
     }
 
     private static EgonColaShardingProperties routingProperties() {

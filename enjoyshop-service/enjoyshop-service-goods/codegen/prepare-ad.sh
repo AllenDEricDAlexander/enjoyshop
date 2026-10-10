@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel)"
+repo_root="$(git -C "$(dirname "$0")/../../.." rev-parse --show-toplevel)"
 mode="${1:-}"
 stage="${2:-}"
 case "$mode" in
