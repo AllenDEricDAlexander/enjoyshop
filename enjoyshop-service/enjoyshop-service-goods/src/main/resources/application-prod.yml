@@ -20,6 +20,10 @@ management:
       show-details: never
 
 app:
+  search:
+    enabled: false
+    public-sites: {}
+    query-timeout: PT2S
   cdc:
     enabled: false
     max-payload-bytes: 1048576

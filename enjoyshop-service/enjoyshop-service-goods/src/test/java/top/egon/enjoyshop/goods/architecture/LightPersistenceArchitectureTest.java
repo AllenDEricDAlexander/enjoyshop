@@ -41,7 +41,7 @@ class LightPersistenceArchitectureTest {
         assertFalse(source.contains("EgonColaIService"));
         assertFalse(source.contains("EgonColaServiceImpl"));
         assertTrue(source.contains("extends EgonColaRepository<"));
-        assertEquals(14, count(javaFiles, "Repository.java"));
+        assertEquals(15, count(javaFiles, "Repository.java"));
         for (Path file : javaFiles) {
             if (file.toString().contains("service/impl") && file.toString().endsWith("DomainServiceImpl.java")) {
                 assertFalse(read(file).contains("repo.dao"), "Business Service must compose repositories: " + file);
@@ -51,12 +51,16 @@ class LightPersistenceArchitectureTest {
 
         assertEquals(14, count(javaFiles, "PO.java"));
         assertEquals(14, count(javaFiles, "DAO.java"));
-        assertEquals(10, count(javaFiles, "DomainServiceImpl.java"));
+        assertEquals(11, count(javaFiles, "DomainServiceImpl.java"));
         for (String prefix : List.of("Spu", "Sku", "CategoryBrand", "Ad")) {
             assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "PO.java")));
             assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "DAO.java")));
             assertTrue(javaFiles.stream().anyMatch(file -> file.getFileName().toString().equals(prefix + "Repository.java")));
         }
+        Path searchPort = Path.of("src/main/java/top/egon/enjoyshop/goods/domain/search/ProductSearchRepository.java");
+        assertFalse(read(searchPort).contains("org.springframework"));
+        assertFalse(read(searchPort).contains("com.baomidou.mybatisplus"));
+        assertFalse(read(searchPort).contains("co.elastic.clients"));
         assertFalse(source.contains("class ShardingDataSourceBootstrapper"));
         assertFalse(source.contains("YamlShardingSphereDataSourceFactory"));
         String pom = Files.readString(Path.of("pom.xml"), StandardCharsets.UTF_8);

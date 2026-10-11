@@ -125,6 +125,18 @@ public class NativeHttpSecurityConfiguration {
                 .build();
     }
 
+    @Bean("productSearchSecurityFilterChain")
+    @Order(Ordered.LOWEST_PRECEDENCE - 5)
+    SecurityFilterChain productSearchSecurityFilterChain(HttpSecurity http,
+            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource cors,
+            @Qualifier("jacksonObjectMapper") ObjectMapper mapper) throws Exception {
+        http.securityMatcher("/api/v1/product-search", "/api/v1/product-search/**");
+        configureCommonSecurity(http, cors, mapper);
+        return http.authorizeHttpRequests(authorize -> authorize
+                .requestMatchers(HttpMethod.GET, "/api/v1/product-search").permitAll()
+                .anyRequest().denyAll()).build();
+    }
+
     private static void configureCommonSecurity(HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource,
             ObjectMapper objectMapper) throws Exception {

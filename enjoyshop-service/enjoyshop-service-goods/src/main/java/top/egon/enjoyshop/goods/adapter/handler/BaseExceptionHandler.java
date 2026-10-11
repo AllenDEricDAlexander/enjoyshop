@@ -50,6 +50,12 @@ public class BaseExceptionHandler {
      */
     @ExceptionHandler(CommonException.class)
     public ResponseEntity<ResultRecord<Void>> handleCommonException(CommonException exception, HttpServletRequest request) {
+        if (searchPath(request)) {
+            GoodsErrorStatus error = java.util.Arrays.stream(GoodsErrorStatus.values())
+                    .filter(value -> value.getCode() == exception.getCode() && value.name().startsWith("SEARCH_"))
+                    .findFirst().orElse(GoodsErrorStatus.SEARCH_INTERNAL_ERROR);
+            return ResponseEntity.status(httpStatus(error.getCode())).body(ResultRecord.failure(error));
+        }
         if (!productPath(request)) {
             if (!adPath(request)) { return handleCommonException(exception); }
             if (exception.getCode() == 401000) {
@@ -106,7 +112,7 @@ public class BaseExceptionHandler {
                 ? List.of()
                 : List.copyOf(exception.getConstraintViolations());
         log.warn("goods request rejected with {} constraint violation(s)", violations.size());
-        return fieldErrorsResponse(violations.stream().map(value -> productPath(request) ? toProductViolation(value) : toViolation(value)).toList(),
+        return fieldErrorsResponse(violations.stream().map(value -> productPath(request) || searchPath(request) ? toProductViolation(value) : toViolation(value)).toList(),
                 requestErrorStatus(request));
     }
 
@@ -157,6 +163,11 @@ public class BaseExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ResultRecord<Void>> handleUnexpectedException(Exception exception, HttpServletRequest request) {
+        if (searchPath(request)) {
+            log.error("unexpected product search failure", exception);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResultRecord.failure(GoodsErrorStatus.SEARCH_INTERNAL_ERROR));
+        }
         if (productPath(request)) {
             if (idFailure(exception)) { return productError(GoodsErrorStatus.PRODUCT_ID_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE); }
             if (exception instanceof org.springframework.security.access.AccessDeniedException
@@ -199,15 +210,15 @@ public class BaseExceptionHandler {
      */
     private static HttpStatusCode httpStatus(int code) {
         return switch (code) {
-            case 610101, 610106, 610110, 610201 -> HttpStatus.BAD_REQUEST;
-            case 610102, 610202, 610302, 610306 -> HttpStatus.NOT_FOUND;
+            case 610101, 610106, 610110, 610201, 610401 -> HttpStatus.BAD_REQUEST;
+            case 610102, 610202, 610302, 610306, 610402 -> HttpStatus.NOT_FOUND;
             case 610103, 610104, 610203, 610204, 610205, 610303 -> HttpStatus.CONFLICT;
             case 610105 -> HttpStatus.UNAUTHORIZED;
             case 610206, 610305 -> HttpStatus.FORBIDDEN;
             case 610107 -> HttpStatus.PAYLOAD_TOO_LARGE;
-            case 610108, 610109, 610207, 610208, 610304, 610307, 610308, 610309, 610310 -> HttpStatus.SERVICE_UNAVAILABLE;
+            case 610108, 610109, 610207, 610208, 610304, 610307, 610308, 610309, 610310, 610403 -> HttpStatus.SERVICE_UNAVAILABLE;
             case 610301 -> HttpStatus.BAD_REQUEST;
-            case 610399 -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case 610399, 610499 -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }
@@ -222,6 +233,7 @@ public class BaseExceptionHandler {
         String requestUri = request.getRequestURI();
         String contextPath = request.getContextPath();
         String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
+        if (searchPath(request)) { return GoodsErrorStatus.SEARCH_REQUEST_INVALID; }
         if (productPath(request)) { return GoodsErrorStatus.PRODUCT_REQUEST_INVALID; }
         if (adPath(request)) { return GoodsErrorStatus.AD_REQUEST_INVALID; }
         if (path.equals("/api/v1/specs") || path.startsWith("/api/v1/specs/")) {
@@ -261,6 +273,11 @@ public class BaseExceptionHandler {
                 violation.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName(),
                 violation.getMessage());
     }
+    private static boolean searchPath(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return path.equals("/api/v1/product-search") || path.startsWith("/api/v1/product-search/");
+    }
+
     private static boolean productPath(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         return path.equals("/api/v1/products") || path.startsWith("/api/v1/products/");

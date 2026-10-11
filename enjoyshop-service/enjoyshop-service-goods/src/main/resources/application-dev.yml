@@ -15,6 +15,10 @@ spring:
       max-file-size: 10MB
       max-request-size: 11MB
 app:
+  search:
+    enabled: false
+    public-sites: {}
+    query-timeout: PT2S
   cdc:
     enabled: false
     max-payload-bytes: 1048576

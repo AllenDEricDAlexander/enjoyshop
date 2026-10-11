@@ -41,7 +41,11 @@ public enum GoodsErrorStatus implements ErrorStatus {
     AD_AUTHORIZATION_UNAVAILABLE(610308, "advertisement authorization is unavailable"),
     AD_ID_UNAVAILABLE(610309, "advertisement identifier generation is unavailable"),
     AD_DATA_INVALID(610310, "advertisement data is invalid"),
-    AD_INTERNAL_ERROR(610399, "advertisement internal error");
+    AD_INTERNAL_ERROR(610399, "advertisement internal error"),
+    SEARCH_REQUEST_INVALID(610401, "search request parameters are invalid"),
+    SEARCH_SITE_NOT_CONFIGURED(610402, "search site is not configured"),
+    SEARCH_UNAVAILABLE(610403, "product search is unavailable"),
+    SEARCH_INTERNAL_ERROR(610499, "product search internal error");
 
     private final int code;
 
