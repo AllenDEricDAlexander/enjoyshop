@@ -92,13 +92,21 @@ class NativeHttpSecurityConfigurationTest extends top.egon.enjoyshop.goods.suppo
     }
 
     @Test
-    void existing_brand_get_remains_public_and_exposes_location_for_allowed_origin() throws Exception {
+    void authenticated_brand_get_exposes_location_for_allowed_origin() throws Exception {
         mockMvc.perform(get("/api/v1/brands").header("Origin", ALLOWED_ORIGIN))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHORIZATION_HEADER_INVALID"))
+                .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED_ORIGIN))
+                .andExpect(header().string("Access-Control-Expose-Headers", containsString("Location")));
+
+        mockMvc.perform(get("/api/v1/brands")
+                        .header("Origin", ALLOWED_ORIGIN)
+                        .header("Authorization", "Bearer product-read"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED_ORIGIN))
                 .andExpect(header().string("Access-Control-Expose-Headers", containsString("Location")));
 
-        mockMvc.perform(get("/api/v1/brands"))
+        mockMvc.perform(get("/api/v1/brands").header("Authorization", "Bearer product-read"))
                 .andExpect(status().isOk());
     }
 

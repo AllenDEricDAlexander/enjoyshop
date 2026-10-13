@@ -58,6 +58,9 @@ public abstract class PersistenceTestSupport {
 
     @AfterEach
     void closeOwnDatabase() {
+        // SHUTDOWN drops the in-memory database. A cached Spring context reuses this DataSource,
+        // so the next test method would see an empty database unless the fixture is reapplied.
         new JdbcTemplate(testDataSource).execute("SHUTDOWN");
+        new ResourceDatabasePopulator(new ClassPathResource("mybatis/h2-schema.sql")).execute(testDataSource);
     }
 }

@@ -68,7 +68,7 @@ class BaseExceptionHandlerTest {
     void common_exception_maps_to_envelope_with_http_status() throws Exception {
         when(brandManage.detail(any())).thenThrow(new CommonException(GoodsErrorStatus.BRAND_VERSION_CONFLICT));
 
-        mockMvc.perform(get("/api/v1/brands/1"))
+        mockMvc.perform(get("/api/v1/brands/1").header("Authorization", "Bearer product-read"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.code").value(610104))
@@ -83,6 +83,7 @@ class BaseExceptionHandlerTest {
     @Test
     void validation_failure_carries_field_errors() throws Exception {
         mockMvc.perform(post("/api/v1/brands")
+                        .header("Authorization", "Bearer product-read")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"  \",\"letter\":\"AB\"}"))
                 .andExpect(status().isBadRequest())
@@ -101,7 +102,7 @@ class BaseExceptionHandlerTest {
     void duplicate_key_maps_to_409_610103() throws Exception {
         when(brandManage.detail(any())).thenThrow(new DuplicateKeyException("duplicate key value"));
 
-        mockMvc.perform(get("/api/v1/brands/1"))
+        mockMvc.perform(get("/api/v1/brands/1").header("Authorization", "Bearer product-read"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(610103))
                 .andExpect(jsonPath("$.status").value("BRAND_NAME_DUPLICATED"))
@@ -113,7 +114,7 @@ class BaseExceptionHandlerTest {
         when(brandManage.detail(any()))
                 .thenThrow(new IllegalStateException("jdbc:postgresql://internal-db:5432/primary"));
 
-        mockMvc.perform(get("/api/v1/brands/1"))
+        mockMvc.perform(get("/api/v1/brands/1").header("Authorization", "Bearer product-read"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.code").value(610199))

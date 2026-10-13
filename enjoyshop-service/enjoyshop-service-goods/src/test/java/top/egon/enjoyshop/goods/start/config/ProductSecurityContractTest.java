@@ -25,7 +25,7 @@ class ProductSecurityContractTest extends PersistenceTestSupport {
         var names = chain.getFilters("/api/v1/products").stream().map(filter -> filter.getClass().getSimpleName()).toList();
         assertThat(names).containsSubsequence("IdpBearerAuthenticationFilter", "Rbac3BearerAuthenticationFilter", "AnonymousAuthenticationFilter");
         assertThat(chain.getFilters("/api/v1/brands").stream().map(filter -> filter.getClass().getSimpleName()).toList())
-                .doesNotContain("Rbac3BearerAuthenticationFilter");
+                .containsSubsequence("IdpBearerAuthenticationFilter", "Rbac3BearerAuthenticationFilter", "AnonymousAuthenticationFilter");
     }
 
     @Test void snapshotFailureKeepsTheFilterErrorShape() throws Exception {

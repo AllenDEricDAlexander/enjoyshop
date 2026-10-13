@@ -14,6 +14,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import top.egon.cola.component.common.core.exception.CommonException;
 import top.egon.cola.component.common.core.pojo.PageQuery;
 import top.egon.cola.component.common.core.pojo.PageResultRecord;
@@ -87,6 +89,10 @@ class BrandControllerWebTest {
     @Autowired
     private BrandManage brandManage;
 
+    private ResultActions authenticated(MockHttpServletRequestBuilder request) throws Exception {
+        return mockMvc.perform(request.header("Authorization", "Bearer product-read"));
+    }
+
     @BeforeEach
     void resetCollaborator() {
         reset(brandManage);
@@ -101,7 +107,7 @@ class BrandControllerWebTest {
     void create_returns_201_with_location_and_envelope() throws Exception {
         when(brandManage.create(any())).thenReturn(aBrand(0L));
 
-        mockMvc.perform(post("/api/v1/brands").contentType(MediaType.APPLICATION_JSON)
+        authenticated(post("/api/v1/brands").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Apple\",\"letter\":\"a\",\"seq\":100}"))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/api/v1/brands/" + CREATED_ID))
@@ -117,7 +123,7 @@ class BrandControllerWebTest {
         when(brandManage.listBrands(any(), isNull(), isNull()))
                 .thenReturn(PageResultRecord.success(List.of(aBrand(0L)), 1L, 1, 500));
 
-        mockMvc.perform(get("/api/v1/brands"))
+        authenticated(get("/api/v1/brands"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page.pageSize").value(500))
                 .andExpect(jsonPath("$.page.pageNo").value(1))
@@ -135,7 +141,7 @@ class BrandControllerWebTest {
         when(brandManage.listBrands(any(), isNull(), isNull()))
                 .thenReturn(PageResultRecord.success(List.of(), 0L, 1, 500));
 
-        mockMvc.perform(get("/api/v1/brands").param("categoryName", "  mobile phone  "))
+        authenticated(get("/api/v1/brands").param("categoryName", "  mobile phone  "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.records").isArray())
                 .andExpect(jsonPath("$.records").isEmpty());
@@ -150,7 +156,7 @@ class BrandControllerWebTest {
         when(brandManage.listBrands(any(), isNull(), isNull()))
                 .thenReturn(PageResultRecord.success(List.of(), 0L, 1, 500));
 
-        mockMvc.perform(get("/api/v1/brands").param("categoryName", "   "))
+        authenticated(get("/api/v1/brands").param("categoryName", "   "))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610101))
                 .andExpect(jsonPath("$.status").value("BRAND_REQUEST_INVALID"));
@@ -161,7 +167,7 @@ class BrandControllerWebTest {
         when(brandManage.listBrands(any(), isNull(), isNull()))
                 .thenReturn(PageResultRecord.success(List.of(), 0L, 1, 500));
 
-        mockMvc.perform(get("/api/v1/brands").param("categoryName", "x".repeat(121)))
+        authenticated(get("/api/v1/brands").param("categoryName", "x".repeat(121)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610101))
                 .andExpect(jsonPath("$.status").value("BRAND_REQUEST_INVALID"));
@@ -172,7 +178,7 @@ class BrandControllerWebTest {
         when(brandManage.listBrands(any(), isNull(), isNull()))
                 .thenReturn(PageResultRecord.success(List.of(), 3L, 999, 10));
 
-        mockMvc.perform(get("/api/v1/brands").param("pageNo", "999").param("pageSize", "10"))
+        authenticated(get("/api/v1/brands").param("pageNo", "999").param("pageSize", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.records").isArray())
                 .andExpect(jsonPath("$.records").isEmpty())
@@ -183,7 +189,7 @@ class BrandControllerWebTest {
     void update_echoes_the_new_version() throws Exception {
         when(brandManage.update(any())).thenReturn(aBrand(4L).setName("Apple Inc"));
 
-        mockMvc.perform(put("/api/v1/brands/" + CREATED_ID).contentType(MediaType.APPLICATION_JSON)
+        authenticated(put("/api/v1/brands/" + CREATED_ID).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Apple Inc\",\"letter\":\"A\",\"seq\":120,\"version\":3}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -199,13 +205,13 @@ class BrandControllerWebTest {
 
     @Test
     void delete_returns_true_and_repeat_maps_404() throws Exception {
-        mockMvc.perform(delete("/api/v1/brands/" + CREATED_ID).param("version", "0"))
+        authenticated(delete("/api/v1/brands/" + CREATED_ID).param("version", "0"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").value(true));
 
         doThrow(new CommonException(GoodsErrorStatus.BRAND_NOT_FOUND)).when(brandManage).delete(any());
-        mockMvc.perform(delete("/api/v1/brands/" + CREATED_ID).param("version", "0"))
+        authenticated(delete("/api/v1/brands/" + CREATED_ID).param("version", "0"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(610102))
                 .andExpect(jsonPath("$.status").value("BRAND_NOT_FOUND"))
@@ -214,7 +220,7 @@ class BrandControllerWebTest {
 
     @Test
     void non_positive_brand_id_is_400() throws Exception {
-        mockMvc.perform(get("/api/v1/brands/0"))
+        authenticated(get("/api/v1/brands/0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610101))
                 .andExpect(jsonPath("$.status").value("BRAND_REQUEST_INVALID"));
@@ -222,7 +228,7 @@ class BrandControllerWebTest {
 
     @Test
     void non_numeric_brand_id_is_400() throws Exception {
-        mockMvc.perform(get("/api/v1/brands/not-a-number"))
+        authenticated(get("/api/v1/brands/not-a-number"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610101))
                 .andExpect(jsonPath("$.data").doesNotExist());
@@ -230,14 +236,14 @@ class BrandControllerWebTest {
 
     @Test
     void missing_version_parameter_is_400() throws Exception {
-        mockMvc.perform(delete("/api/v1/brands/" + CREATED_ID))
+        authenticated(delete("/api/v1/brands/" + CREATED_ID))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610101));
     }
 
     @Test
     void inverted_seq_range_is_400() throws Exception {
-        mockMvc.perform(get("/api/v1/brands").param("seqMin", "90").param("seqMax", "10"))
+        authenticated(get("/api/v1/brands").param("seqMin", "90").param("seqMax", "10"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610101))
                 .andExpect(jsonPath("$.status").value("BRAND_REQUEST_INVALID"));
@@ -245,7 +251,7 @@ class BrandControllerWebTest {
 
     @Test
     void invalid_letter_is_400_with_field_errors() throws Exception {
-        mockMvc.perform(post("/api/v1/brands").contentType(MediaType.APPLICATION_JSON)
+        authenticated(post("/api/v1/brands").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Apple\",\"letter\":\"AB\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610101))
@@ -259,7 +265,7 @@ class BrandControllerWebTest {
         when(brandManage.create(any()))
                 .thenThrow(new CommonException(GoodsErrorStatus.BRAND_OPERATOR_REQUIRED));
 
-        mockMvc.perform(post("/api/v1/brands").contentType(MediaType.APPLICATION_JSON)
+        authenticated(post("/api/v1/brands").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Apple\",\"letter\":\"a\",\"seq\":100}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(610105))
@@ -267,7 +273,7 @@ class BrandControllerWebTest {
                 .andExpect(jsonPath("$.data").doesNotExist())
                 .andExpect(jsonPath("$.traceId").exists());
 
-        mockMvc.perform(get("/api/v1/brands/" + CREATED_ID))
+        authenticated(get("/api/v1/brands/" + CREATED_ID))
                 .andExpect(status().isOk());
     }
 
@@ -275,7 +281,7 @@ class BrandControllerWebTest {
     void version_conflict_is_409() throws Exception {
         when(brandManage.update(any())).thenThrow(new CommonException(GoodsErrorStatus.BRAND_VERSION_CONFLICT));
 
-        mockMvc.perform(put("/api/v1/brands/" + CREATED_ID).contentType(MediaType.APPLICATION_JSON)
+        authenticated(put("/api/v1/brands/" + CREATED_ID).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Apple\",\"letter\":\"A\",\"seq\":1,\"version\":3}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(610104));

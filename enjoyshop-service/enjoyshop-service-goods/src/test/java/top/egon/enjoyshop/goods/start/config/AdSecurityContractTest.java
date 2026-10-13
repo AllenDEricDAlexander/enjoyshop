@@ -82,7 +82,10 @@ class AdSecurityContractTest {
         assertThat(filter.skips("GET", "/api/v1/ads")).isTrue();
         assertThat(filter.skips("DELETE", "/api/v1/ads/1")).isTrue();
         assertThat(filter.skips("GET", "/api/v1/ad-slots/web_index_lb/ads")).isTrue();
-        assertThat(filter.skips("GET", "/api/v1/brands")).isFalse();
+        assertThat(filter.skips("GET", "/api/v1/brands")).isTrue();
+        assertThat(filter.skips("GET", "/api/v1/specs/category/phones")).isTrue();
+        assertThat(filter.skips("POST", "/api/v1/files")).isTrue();
+        assertThat(filter.skips("GET", "/api/v1/legacy-unscoped")).isFalse();
     }
 
     @Test

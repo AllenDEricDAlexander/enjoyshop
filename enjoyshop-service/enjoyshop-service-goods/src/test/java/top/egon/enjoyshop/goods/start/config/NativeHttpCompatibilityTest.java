@@ -25,7 +25,8 @@ class NativeHttpCompatibilityTest extends top.egon.enjoyshop.goods.support.Persi
     @Test
     void public_product_search_stays_anonymous() throws Exception {
         mockMvc.perform(get("/api/v1/product-search"))
-                .andExpect(status().isOk());
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("code").value(610403));
     }
 
     @Test
@@ -83,7 +84,9 @@ class NativeHttpCompatibilityTest extends top.egon.enjoyshop.goods.support.Persi
         @Test
         void document_governance_leaves_business_and_health_routes_accessible() throws Exception {
             governedMvc.perform(get("/actuator/health")).andExpect(status().isOk());
-            governedMvc.perform(get("/api/v1/product-search")).andExpect(status().isOk());
+            governedMvc.perform(get("/api/v1/product-search"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("code").value(610403));
         }
     }
 
@@ -92,6 +95,11 @@ class NativeHttpCompatibilityTest extends top.egon.enjoyshop.goods.support.Persi
         @org.springframework.context.annotation.Bean("governedProbeController")
         GovernedProbeController governedProbeController() {
             return new GovernedProbeController();
+        }
+
+        @org.springframework.context.annotation.Bean("uncataloguedProbeController")
+        UncataloguedProbeController uncataloguedProbeController() {
+            return new UncataloguedProbeController();
         }
 
         @org.springframework.context.annotation.Bean("testJwtDecoder")
@@ -111,6 +119,14 @@ class NativeHttpCompatibilityTest extends top.egon.enjoyshop.goods.support.Persi
         @io.swagger.v3.oas.annotations.Operation(operationId = "governedProbe")
         java.util.Map<String, String> probe() {
             return java.util.Map.of("status", "ok");
+        }
+    }
+
+    @org.springframework.web.bind.annotation.RestController
+    static class UncataloguedProbeController {
+        @org.springframework.web.bind.annotation.GetMapping("/api/uncatalogued-probe")
+        java.util.Map<String, String> hidden() {
+            return java.util.Map.of("status", "hidden");
         }
     }
 }

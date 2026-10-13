@@ -1,13 +1,24 @@
 package top.egon.enjoyshop.goods.common.validation;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import top.egon.cola.platform.tianquan.jianshen.contract.authorization.SystemAuthorizationSnapshot;
+import top.egon.cola.platform.tianquan.jianshen.starter.security.Rbac3AuthenticationToken;
+import top.egon.cola.platform.tianquan.jianshen.starter.security.Rbac3UserDetails;
+import top.egon.cola.platform.tianquan.shoubing.contract.AuthenticationContext;
+import top.egon.cola.platform.tianquan.shoubing.contract.IdentityPrincipal;
 import top.egon.enjoyshop.goods.application.goods.SpecListQuery;
 import top.egon.enjoyshop.goods.application.goods.SpecManage;
 import top.egon.enjoyshop.goods.domain.goods.SpecDomainQuery;
@@ -47,6 +58,12 @@ class SpecCatalogQueryValidationTest extends top.egon.enjoyshop.goods.support.Pe
         reset(specDAO);
     }
 
+    @AfterEach
+    void clearVerifiedReader() {
+        SecurityContextHolder.clearContext();
+        MDC.clear();
+    }
+
     @Test
     void domain_service_rejects_invalid_required_names_before_querying() {
         for (String categoryName : new String[]{null, "", "   ", "x".repeat(121)}) {
@@ -59,6 +76,7 @@ class SpecCatalogQueryValidationTest extends top.egon.enjoyshop.goods.support.Pe
 
     @Test
     void application_manage_rejects_invalid_names_before_domain_and_persistence() {
+        installSpecReader();
         for (String categoryName : new String[]{null, "", "   ", "x".repeat(121)}) {
             assertThatThrownBy(() -> specManage.listSpecsByCategoryName(
                     new SpecListQuery().setCategoryName(categoryName)))
@@ -89,5 +107,20 @@ class SpecCatalogQueryValidationTest extends top.egon.enjoyshop.goods.support.Pe
 
     private static SpecDomainQuery query(String categoryName) {
         return new SpecDomainQuery().setCategoryName(categoryName);
+    }
+
+    private static void installSpecReader() {
+        Instant now = Instant.parse("2026-10-09T00:00:00Z");
+        IdentityPrincipal identity = new IdentityPrincipal(
+                "spec-reader", "1", "test-jti", Set.of("platform"), now, now.plusSeconds(300),
+                AuthenticationContext.password());
+        SystemAuthorizationSnapshot snapshot = new SystemAuthorizationSnapshot(
+                "1", "spec-reader", "rbac-user", "enjoyshop-goods", 1, 1,
+                List.of(), List.of(), null, Set.of("enjoyshop:spec:read"), Set.of("enjoyshop.spec"),
+                Map.of(), Map.of(), "test", now, now.plusSeconds(1));
+        SecurityContextHolder.getContext().setAuthentication(
+                new Rbac3AuthenticationToken(new Rbac3UserDetails(identity, snapshot)));
+        MDC.put("tenantId", "1");
+        MDC.put("userId", "spec-reader");
     }
 }

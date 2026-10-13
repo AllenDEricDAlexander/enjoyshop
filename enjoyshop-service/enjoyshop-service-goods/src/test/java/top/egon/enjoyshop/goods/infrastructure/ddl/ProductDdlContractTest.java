@@ -91,7 +91,7 @@ class ProductDdlContractTest {
         assertThat(script).exists();
         JsonNode manifest = new ObjectMapper().readTree(DIRECTORY.resolve("repository-manifest.json").toFile());
         List<JsonNode> entries = StreamSupport.stream(manifest.path("scripts").spliterator(), false).toList();
-        assertThat(entries).hasSize(4);
+        assertThat(entries).hasSize(5);
         for (int index = 0; index < 3; index++) {
             JsonNode entry = entries.get(index);
             String fileName = Path.of(entry.path("path").asText()).getFileName().toString();
@@ -104,6 +104,11 @@ class ProductDdlContractTest {
         assertThat(product.path("version").asText()).isEqualTo("20261009_001");
         assertThat(product.path("path").asText()).isEqualTo("db/egon-mp/" + PRODUCT_SCRIPT);
         assertThat(product.path("sha256").asText()).isEqualTo(sha256(script));
+        JsonNode advertisement = entries.get(4);
+        String advertisementScript = "V20261010_001__initialize_advertisement_cdc.sql";
+        assertThat(advertisement.path("version").asText()).isEqualTo("20261010_001");
+        assertThat(advertisement.path("path").asText()).isEqualTo("db/egon-mp/" + advertisementScript);
+        assertThat(advertisement.path("sha256").asText()).isEqualTo(sha256(DIRECTORY.resolve(advertisementScript)));
     }
 
     @Test

@@ -148,9 +148,14 @@ class FileControllerWebTest extends top.egon.enjoyshop.goods.support.Persistence
     }
 
     @Test
-    void public_brand_route_does_not_use_the_upload_bearer_filter() throws Exception {
+    void invalid_brand_bearer_is_rejected_by_the_brand_chain() throws Exception {
         mockMvc.perform(get("/api/v1/brands").header("Authorization", "Bearer invalid-test-token"))
-                .andExpect(status().isOk());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("JWT_INVALID"))
+                .andExpect(jsonPath("$.message").value("Tianquan-Shoubing authentication failed"))
+                .andExpect(jsonPath("$.success").doesNotExist());
+
+        verifyNoInteractions(brandManage);
     }
 
     @Test

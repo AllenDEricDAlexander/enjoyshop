@@ -46,7 +46,7 @@ class SpecControllerWebTest extends top.egon.enjoyshop.goods.support.Persistence
         when(specManage.listSpecsByCategoryName(any()))
                 .thenReturn(List.of(new SpecResult("Size", List.of("S", "M", "L"))));
 
-        mockMvc.perform(get("/api/v1/specs/category/phones"))
+        mockMvc.perform(get("/api/v1/specs/category/phones").header("Authorization", "Bearer product-read"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.code").value(10000))
@@ -64,7 +64,7 @@ class SpecControllerWebTest extends top.egon.enjoyshop.goods.support.Persistence
     void category_without_specs_returns_empty_array() throws Exception {
         when(specManage.listSpecsByCategoryName(any())).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/v1/specs/category/phones"))
+        mockMvc.perform(get("/api/v1/specs/category/phones").header("Authorization", "Bearer product-read"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data").isEmpty());
@@ -72,7 +72,8 @@ class SpecControllerWebTest extends top.egon.enjoyshop.goods.support.Persistence
 
     @Test
     void blank_category_name_is_rejected_before_manage() throws Exception {
-        mockMvc.perform(get("/api/v1/specs/category/{categoryName}", "   "))
+        mockMvc.perform(get("/api/v1/specs/category/{categoryName}", "   ")
+                        .header("Authorization", "Bearer product-read"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610110))
                 .andExpect(jsonPath("$.status").value("CATALOG_REQUEST_INVALID"));
@@ -82,7 +83,8 @@ class SpecControllerWebTest extends top.egon.enjoyshop.goods.support.Persistence
 
     @Test
     void overlong_category_name_is_rejected_before_manage() throws Exception {
-        mockMvc.perform(get("/api/v1/specs/category/" + "x".repeat(121)))
+        mockMvc.perform(get("/api/v1/specs/category/" + "x".repeat(121))
+                        .header("Authorization", "Bearer product-read"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(610110))
                 .andExpect(jsonPath("$.status").value("CATALOG_REQUEST_INVALID"));

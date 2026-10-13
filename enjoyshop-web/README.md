@@ -58,18 +58,8 @@ npm run build
 | DELETE `/api/v1/ads/{adId}` | 删除广告，回传 version |
 | GET `/api/v1/ad-slots/{position}/ads` | 广告展示，选择广告位和条数 |
 | GET `/api/v1/product-search` | 商城 SKU 搜索：价格、排序、品牌/分类及重复 spec 筛选 |
-| POST `/api/users` | 创建用户 |
-| GET `/api/users/{userId}` | 用户 ID 查询 |
-| POST `/api/users/{userId}/roles` | 分配已有角色编码 |
-| POST `/api/roles/{roleCode}/permissions` | 向已有角色授予权限编码 |
-| GET `/api/users/{userId}/permissions` | 权限树查询 |
-| POST `/api/courses` | 创建课程 |
-| GET `/api/courses/{courseId}` | 课程 ID 查询 |
-| POST `/api/school-classes` | 创建班级 |
-| GET `/api/school-classes/{schoolClassId}` | 班级 ID 查询 |
-| POST `/api/school-classes/{schoolClassId}/courses/{courseId}/schedule` | 排课，保留 LocalDateTime |
 
-另外提供工作概览、连接配置，以及已有平台 `/bff/session`、`/bff/csrf`、`/bff/logout` 的交互。用户、课程、班级接口没有集合查询/更新/删除能力，页面按实际能力提供创建和 ID 查询；角色与权限使用已有编码，不提供虚构的角色/权限创建接口。后端没有分类树或模板查询接口，商品表单保留明确的关联 ID 输入；分类规格页面提供现有查询能力。CDC、RPC、缓存等后台机制由服务端负责。
+另外提供工作概览、连接配置，以及已有平台 `/bff/session`、`/bff/csrf`、`/bff/logout` 的交互。后端没有分类树或模板查询接口，商品表单保留明确的关联 ID 输入；分类规格页面提供现有查询能力。CDC、RPC、缓存等后台机制由服务端负责。
 
 ## 关键约束与验收
 
@@ -80,4 +70,4 @@ npm run build
 - 搜索页处理候选截断及 maxAccessiblePageNo，重复 `spec.<name>` 仅编码一次。默认搜索引擎尚未接入会返回 503；公开广告默认关闭会返回拒绝。需按现有后端配置接入后才能运行验收。
 - 静态检查、Node 测试和构建可离线完成。浏览器布局/交互、真实 OIDC/BFF/权限、旧接口网关上下文、对象存储上传及数据库联调仍需用户启动实际环境后验收；本任务未启动应用或浏览器。
 
-建议运行验收：配置连接 → 创建/编辑品牌 → 查询分类规格 → 上传图片 → 创建商品与多个 SKU → 审核上架 → 搜索（引擎接入后）→ 下架编辑/重新审核 → 回收/还原/永久删除 → 广告时间窗口与公开展示（启用后）→ 用户/角色/权限 → 课程/班级/排课。另用两个会话验证版本冲突、无权限身份、失效会话、超限文件和网络中断。
+建议运行验收：配置连接 → 创建/编辑品牌 → 查询分类规格 → 上传图片 → 创建商品与多个 SKU → 审核上架 → 搜索（引擎接入后）→ 下架编辑/重新审核 → 回收/还原/永久删除 → 广告时间窗口与公开展示（启用后）。另用两个会话验证版本冲突、无权限身份、失效会话、超限文件和网络中断。
