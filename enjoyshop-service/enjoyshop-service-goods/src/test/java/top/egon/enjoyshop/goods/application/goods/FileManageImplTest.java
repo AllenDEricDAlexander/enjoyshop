@@ -3,14 +3,16 @@ package top.egon.enjoyshop.goods.application.goods;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Validation;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.aop.framework.ProxyFactory;
-import org.springframework.validation.beanvalidation.MethodValidationInterceptor;
 import top.egon.cola.component.common.core.exception.CommonException;
+import top.egon.cola.component.common.core.validation.ValidationUtils;
 import top.egon.enjoyshop.goods.application.goods.converter.FileUploadDomainConverter;
 import top.egon.enjoyshop.goods.common.enums.GoodsErrorStatus;
 import top.egon.enjoyshop.goods.domain.goods.FileDomainService;
@@ -19,6 +21,10 @@ import top.egon.enjoyshop.goods.domain.goods.ProductImageBO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -33,6 +39,12 @@ class FileManageImplTest {
 
     @Spy
     private FileUploadDomainConverter converter = Mappers.getMapper(FileUploadDomainConverter.class);
+
+    @Mock
+    private FileAuthorizationComponent authorization;
+
+    @Mock
+    private ValidationUtils validation;
 
     @InjectMocks
     private FileManageImpl fileManage;
@@ -62,14 +74,41 @@ class FileManageImplTest {
     }
 
     @Test
-    void application_validation_rejects_empty_command_before_domain_call() {
-        ProxyFactory proxyFactory = new ProxyFactory(fileManage);
-        proxyFactory.addAdvice(new MethodValidationInterceptor());
-        FileManage validatedManage = (FileManage) proxyFactory.getProxy();
+    void denialDoesNotCallDomain() {
+        lenient().doThrow(new CommonException(GoodsErrorStatus.FILE_FORBIDDEN))
+                .when(authorization).requirePermission("enjoyshop:file:write");
 
-        assertThatThrownBy(() -> validatedManage.upload(new FileUploadCommand().setContent(new byte[0])))
-                .isInstanceOf(jakarta.validation.ConstraintViolationException.class);
+        assertThatThrownBy(() -> fileManage.upload(new FileUploadCommand().setContent(new byte[0])))
+                .isInstanceOf(CommonException.class);
 
         verifyNoInteractions(fileDomainService, converter);
+    }
+
+    @Test
+    void allowValidatesThenCallsDomain() {
+        when(fileDomainService.upload(any(ProductImageBO.class))).thenReturn(STABLE_URL);
+
+        fileManage.upload(FileUploadCommand.builder().content(new byte[]{1}).build());
+
+        InOrder order = inOrder(authorization, validation, fileDomainService);
+        order.verify(authorization).requirePermission("enjoyshop:file:write");
+        order.verify(validation).validate(any(FileUploadCommand.class));
+        order.verify(fileDomainService).upload(any(ProductImageBO.class));
+    }
+
+    @Test
+    void application_validation_rejects_empty_command_before_domain_call() {
+        lenient().doThrow(new CommonException(GoodsErrorStatus.FILE_FORBIDDEN))
+                .when(authorization).requirePermission("enjoyshop:file:write");
+        assertThatThrownBy(() -> fileManage.upload(new FileUploadCommand().setContent(new byte[0])))
+                .isInstanceOf(CommonException.class);
+        verifyNoInteractions(fileDomainService, converter);
+
+        ValidationUtils realValidation = new ValidationUtils(Validation.buildDefaultValidatorFactory().getValidator());
+        FileAuthorizationComponent allowing = mock(FileAuthorizationComponent.class);
+        FileManageImpl allowed = new FileManageImpl(fileDomainService, converter, allowing, realValidation);
+        assertThatThrownBy(() -> allowed.upload(new FileUploadCommand().setContent(new byte[0])))
+                .isInstanceOf(ConstraintViolationException.class);
+        verifyNoInteractions(fileDomainService);
     }
 }

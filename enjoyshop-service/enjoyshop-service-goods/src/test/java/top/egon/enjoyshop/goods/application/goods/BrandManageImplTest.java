@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -12,6 +13,8 @@ import org.slf4j.MDC;
 import top.egon.cola.component.common.core.exception.CommonException;
 import top.egon.cola.component.common.core.pojo.PageQuery;
 import top.egon.cola.component.common.core.pojo.PageResultRecord;
+import top.egon.cola.component.common.core.validation.ValidationUtils;
+import top.egon.enjoyshop.goods.common.enums.GoodsErrorStatus;
 import top.egon.enjoyshop.goods.application.goods.converter.BrandResultConverter;
 import top.egon.enjoyshop.goods.application.goods.converter.CreateBrandCommandConverter;
 import top.egon.enjoyshop.goods.application.goods.converter.DeleteBrandCommandConverter;
@@ -26,6 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -62,6 +68,12 @@ class BrandManageImplTest {
     @Mock
     private BrandResultConverter resultConverter;
 
+    @Mock
+    private BrandAuthorizationComponent authorization;
+
+    @Mock
+    private ValidationUtils validation;
+
     @InjectMocks
     private BrandManageImpl manage;
 
@@ -90,6 +102,44 @@ class BrandManageImplTest {
         assertThatThrownBy(() -> manage.delete(deleteCommand()))
                 .isInstanceOfSatisfying(CommonException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo(610105));
+
+        verifyNoInteractions(domainService);
+    }
+
+    @Test
+    void denialDoesNotCallDomain() {
+        lenient().doThrow(new CommonException(GoodsErrorStatus.BRAND_FORBIDDEN))
+                .when(authorization).requirePermission("enjoyshop:brand:read");
+
+        assertThatThrownBy(() -> manage.listBrands(pageQuery(BRAND_NAME, 1, 10), SEQ_MIN, SEQ_MAX))
+                .isInstanceOf(CommonException.class);
+
+        verifyNoInteractions(domainService);
+    }
+
+    @Test
+    void allowValidatesThenCallsDomain() {
+        BrandBO row = brand();
+        when(domainService.listPage(any(BrandDomainQuery.class), eq(SEQ_MIN), eq(SEQ_MAX)))
+                .thenReturn(List.of(row));
+        when(domainService.countPage(any(BrandDomainQuery.class), eq(SEQ_MIN), eq(SEQ_MAX))).thenReturn(1L);
+        when(resultConverter.toTargetList(List.of(row))).thenReturn(List.of(brandResult()));
+
+        manage.listBrands(pageQuery(BRAND_NAME, 1, 10), SEQ_MIN, SEQ_MAX);
+
+        InOrder order = inOrder(authorization, validation, domainService);
+        order.verify(authorization).requirePermission("enjoyshop:brand:read");
+        order.verify(validation).validate(any(BrandPageQuery.class));
+        order.verify(domainService).listPage(any(BrandDomainQuery.class), eq(SEQ_MIN), eq(SEQ_MAX));
+    }
+
+    @Test
+    void writeWithoutOperatorRemains610105AfterPermissionAllows() {
+        MDC.remove(OPERATOR_KEY);
+
+        assertThatThrownBy(() -> manage.create(createCommand()))
+                .isInstanceOfSatisfying(CommonException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(610105));
 
         verifyNoInteractions(domainService);
     }

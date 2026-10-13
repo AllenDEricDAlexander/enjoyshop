@@ -8,7 +8,6 @@ import top.egon.enjoyshop.goods.application.goods.converter.UpdateBrandCommandCo
 import top.egon.enjoyshop.goods.application.goods.converter.DeleteBrandCommandConverter;
 import top.egon.enjoyshop.goods.application.goods.converter.BrandResultConverter;
 import top.egon.enjoyshop.goods.common.enums.GoodsErrorStatus;
-import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +19,7 @@ import org.springframework.validation.annotation.Validated;
 import top.egon.cola.component.common.core.exception.CommonException;
 import top.egon.cola.component.common.core.pojo.PageResultRecord;
 import top.egon.cola.component.common.core.pojo.PageSlice;
+import top.egon.cola.component.common.core.validation.ValidationUtils;
 
 @Service("brandManage")
 @Validated
@@ -45,9 +45,17 @@ public class BrandManageImpl implements BrandManage {
     @Qualifier("brandResultConverterImpl")
     private final BrandResultConverter resultConverter;
 
+    @Qualifier("brandAuthorizationComponent")
+    private final BrandAuthorizationComponent authorization;
+
+    @Qualifier("egonColaValidationUtils")
+    private final ValidationUtils validation;
+
     @Override
     @Transactional
-    public BrandResult create(@Valid CreateBrandCommand command) {
+    public BrandResult create(CreateBrandCommand command) {
+        authorization.requirePermission("enjoyshop:brand:write");
+        validation.validate(command);
         requireOperator();
         requireNameAvailable(command.getName(), null);
         log.info("create {}", "brand");
@@ -56,7 +64,9 @@ public class BrandManageImpl implements BrandManage {
 
     @Override
     @Transactional
-    public BrandResult update(@Valid UpdateBrandCommand command) {
+    public BrandResult update(UpdateBrandCommand command) {
+        authorization.requirePermission("enjoyshop:brand:write");
+        validation.validate(command);
         requireOperator();
         requireNameAvailable(command.getName(), command.getId());
         BrandBO domain = updateConverter.toTarget(command);
@@ -66,7 +76,9 @@ public class BrandManageImpl implements BrandManage {
 
     @Override
     @Transactional
-    public void delete(@Valid DeleteBrandCommand command) {
+    public void delete(DeleteBrandCommand command) {
+        authorization.requirePermission("enjoyshop:brand:write");
+        validation.validate(command);
         requireOperator();
         BrandBO domain = deleteConverter.toTarget(command);
         log.info("delete {} id={} version={}", "brand", command.getId(), domain.getVersion());
@@ -75,13 +87,17 @@ public class BrandManageImpl implements BrandManage {
 
     @Override
     @Transactional(readOnly = true)
-    public BrandResult detail(@Valid BrandDetailQuery query) {
+    public BrandResult detail(BrandDetailQuery query) {
+        authorization.requirePermission("enjoyshop:brand:read");
+        validation.validate(query);
         return resultConverter.toTarget(domainService.detail(query.getId()));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PageSlice<BrandResult> page(@Valid BrandPageQuery query) {
+    public PageSlice<BrandResult> page(BrandPageQuery query) {
+        authorization.requirePermission("enjoyshop:brand:read");
+        validation.validate(query);
         BrandDomainQuery domainQuery = new BrandDomainQuery();
         domainQuery.setPage(query.getPage());
         domainQuery.setName(query.getName());
@@ -92,7 +108,9 @@ public class BrandManageImpl implements BrandManage {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResultRecord<BrandResult> listBrands(@Valid BrandPageQuery query, Integer seqMin, Integer seqMax) {
+    public PageResultRecord<BrandResult> listBrands(BrandPageQuery query, Integer seqMin, Integer seqMax) {
+        authorization.requirePermission("enjoyshop:brand:read");
+        validation.validate(query);
         BrandDomainQuery domainQuery = BrandDomainQuery.builder()
                 .name(query.getName())
                 .letter(query.getLetter())
