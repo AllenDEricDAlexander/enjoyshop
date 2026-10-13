@@ -40,11 +40,28 @@ class PlatformAuthenticationBoundaryContractTest {
         assertThat(ads).contains(".anyRequest().authenticated()");
         assertThat(filterOrder(ads)).isEqualTo("identity-before-rbac-before-anonymous");
 
+        String brands = methodBody(security, "brandSecurityFilterChain");
+        assertThat(brands).contains("securityMatcher(\"/api/v1/brands\", \"/api/v1/brands/**\")");
+        assertThat(brands).contains(".anyRequest().authenticated()");
+        assertThat(filterOrder(brands)).isEqualTo("identity-before-rbac-before-anonymous");
+        assertThat(security).contains("@Order(Ordered.LOWEST_PRECEDENCE - 6)");
+
+        String specs = methodBody(security, "specSecurityFilterChain");
+        assertThat(specs).contains("securityMatcher(\"/api/v1/specs\", \"/api/v1/specs/**\")");
+        assertThat(specs).contains(".anyRequest().authenticated()");
+        assertThat(filterOrder(specs)).isEqualTo("identity-before-rbac-before-anonymous");
+        assertThat(security).contains("@Order(Ordered.LOWEST_PRECEDENCE - 7)");
+
         String upload = methodBody(security, "fileUploadSecurityFilterChain");
         assertThat(security).contains("FILE_UPLOAD_PATH = \"/api/v1/files\"");
         assertThat(upload).contains("AntPathRequestMatcher(FILE_UPLOAD_PATH, HttpMethod.POST.name())");
         assertThat(upload).contains("IdpBearerAuthenticationFilter");
-        assertThat(upload).doesNotContain("Rbac3BearerAuthenticationFilter");
+        assertThat(upload).contains("Rbac3BearerAuthenticationFilter");
+        assertThat(upload.indexOf("if (idpRegistration || rbacRegistration)")).isLessThan(upload.indexOf("http."));
+
+        String tenant = Files.readString(Path.of(
+                "src/main/java/top/egon/enjoyshop/goods/adapter/filter/TenantContextFilter.java"));
+        assertThat(tenant).contains("/api/v1/brands", "/api/v1/specs", "/api/v1/files");
 
         String publicAds = methodBody(security, "publicAdSecurityFilterChain");
         assertThat(publicAds).contains("securityMatcher(\"/api/v1/ad-slots/**\")");
@@ -78,9 +95,15 @@ class PlatformAuthenticationBoundaryContractTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("must only run inside")
                 .hasMessageContaining("ad SecurityFilterChain");
-        assertThatThrownBy(() -> config.fileUploadSecurityFilterChain(null, null, null, null, true))
+        assertThatThrownBy(() -> config.fileUploadSecurityFilterChain(null, null, null, null, null, true, false))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("must be installed in the file-upload SecurityFilterChain");
+                .hasMessageContaining("file-upload SecurityFilterChain");
+        assertThatThrownBy(() -> config.brandSecurityFilterChain(null, null, null, null, null, true, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("brand SecurityFilterChain");
+        assertThatThrownBy(() -> config.specSecurityFilterChain(null, null, null, null, null, false, true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spec SecurityFilterChain");
     }
 
     @Test

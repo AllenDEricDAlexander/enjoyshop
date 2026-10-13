@@ -48,7 +48,10 @@ public class TenantContextFilter extends OncePerRequestFilter {
         return path.equals("/api/v1/product-search") || path.startsWith("/api/v1/product-search/")
                 || path.equals("/api/v1/products") || path.startsWith("/api/v1/products/")
                 || path.equals("/api/v1/ads") || path.startsWith("/api/v1/ads/")
-                || path.equals("/api/v1/ad-slots") || path.startsWith("/api/v1/ad-slots/");
+                || path.equals("/api/v1/ad-slots") || path.startsWith("/api/v1/ad-slots/")
+                || path.equals("/api/v1/brands") || path.startsWith("/api/v1/brands/")
+                || path.equals("/api/v1/specs") || path.startsWith("/api/v1/specs/")
+                || path.equals("/api/v1/files") || path.startsWith("/api/v1/files/");
     }
 
     @Override

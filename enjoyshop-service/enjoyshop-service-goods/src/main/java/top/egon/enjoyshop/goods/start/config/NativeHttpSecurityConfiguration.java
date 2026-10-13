@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -66,27 +65,22 @@ public class NativeHttpSecurityConfiguration {
     @Bean("fileUploadSecurityFilterChain")
     @Order(Ordered.LOWEST_PRECEDENCE - 1)
     SecurityFilterChain fileUploadSecurityFilterChain(HttpSecurity http,
-            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource corsConfigurationSource,
-            @Qualifier("jacksonObjectMapper") ObjectMapper objectMapper,
-            @Qualifier("idpBearerAuthenticationFilter")
-            ObjectProvider<IdpBearerAuthenticationFilter> shoubingFilterProvider,
-            @Value("${egon.cola.platform.tianquan.shoubing.register-filter:false}")
-            boolean servletFilterRegistration)
-            throws Exception {
-        if (servletFilterRegistration) {
+            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource cors,
+            @Qualifier("jacksonObjectMapper") ObjectMapper mapper,
+            @Qualifier("idpBearerAuthenticationFilter") IdpBearerAuthenticationFilter identity,
+            @Qualifier("rbac3BearerAuthenticationFilter") Rbac3BearerAuthenticationFilter permissions,
+            @Value("${egon.cola.platform.tianquan.shoubing.register-filter:false}") boolean idpRegistration,
+            @Value("${egon.cola.platform.tianquan.jianshen.register-filter:false}") boolean rbacRegistration) throws Exception {
+        if (idpRegistration || rbacRegistration) {
             throw new IllegalStateException(
                     "Shoubing filter must be installed in the file-upload SecurityFilterChain");
         }
-
         http.securityMatcher(new AntPathRequestMatcher(FILE_UPLOAD_PATH, HttpMethod.POST.name()));
-        configureCommonSecurity(http, corsConfigurationSource, objectMapper);
-        IdpBearerAuthenticationFilter shoubingFilter = shoubingFilterProvider.getIfAvailable();
-        if (shoubingFilter != null) {
-            http.addFilterBefore(shoubingFilter, AnonymousAuthenticationFilter.class);
-        }
-        return http.authorizeHttpRequests(authorize -> authorize
-                        .anyRequest().authenticated())
-                .build();
+        configureCommonSecurity(http, cors, mapper);
+        IdpBearerAuthenticationFilter shoubingIdentity = identity;
+        http.addFilterBefore(permissions, AnonymousAuthenticationFilter.class)
+                .addFilterBefore(shoubingIdentity, Rbac3BearerAuthenticationFilter.class);
+        return http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated()).build();
     }
 
     @Bean("adSecurityFilterChain")
@@ -135,6 +129,44 @@ public class NativeHttpSecurityConfiguration {
         return http.authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(HttpMethod.GET, "/api/v1/product-search").permitAll()
                 .anyRequest().denyAll()).build();
+    }
+
+    @Bean("brandSecurityFilterChain")
+    @Order(Ordered.LOWEST_PRECEDENCE - 6)
+    SecurityFilterChain brandSecurityFilterChain(HttpSecurity http,
+            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource cors,
+            @Qualifier("jacksonObjectMapper") ObjectMapper mapper,
+            @Qualifier("idpBearerAuthenticationFilter") IdpBearerAuthenticationFilter identity,
+            @Qualifier("rbac3BearerAuthenticationFilter") Rbac3BearerAuthenticationFilter permissions,
+            @Value("${egon.cola.platform.tianquan.shoubing.register-filter:false}") boolean idpRegistration,
+            @Value("${egon.cola.platform.tianquan.jianshen.register-filter:false}") boolean rbacRegistration) throws Exception {
+        if (idpRegistration || rbacRegistration) {
+            throw new IllegalStateException("Brand authentication filters must only run inside the brand SecurityFilterChain");
+        }
+        http.securityMatcher("/api/v1/brands", "/api/v1/brands/**");
+        configureCommonSecurity(http, cors, mapper);
+        http.addFilterBefore(permissions, AnonymousAuthenticationFilter.class)
+                .addFilterBefore(identity, Rbac3BearerAuthenticationFilter.class);
+        return http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated()).build();
+    }
+
+    @Bean("specSecurityFilterChain")
+    @Order(Ordered.LOWEST_PRECEDENCE - 7)
+    SecurityFilterChain specSecurityFilterChain(HttpSecurity http,
+            @Qualifier("goodsCorsConfigurationSource") CorsConfigurationSource cors,
+            @Qualifier("jacksonObjectMapper") ObjectMapper mapper,
+            @Qualifier("idpBearerAuthenticationFilter") IdpBearerAuthenticationFilter identity,
+            @Qualifier("rbac3BearerAuthenticationFilter") Rbac3BearerAuthenticationFilter permissions,
+            @Value("${egon.cola.platform.tianquan.shoubing.register-filter:false}") boolean idpRegistration,
+            @Value("${egon.cola.platform.tianquan.jianshen.register-filter:false}") boolean rbacRegistration) throws Exception {
+        if (idpRegistration || rbacRegistration) {
+            throw new IllegalStateException("Spec authentication filters must only run inside the spec SecurityFilterChain");
+        }
+        http.securityMatcher("/api/v1/specs", "/api/v1/specs/**");
+        configureCommonSecurity(http, cors, mapper);
+        http.addFilterBefore(permissions, AnonymousAuthenticationFilter.class)
+                .addFilterBefore(identity, Rbac3BearerAuthenticationFilter.class);
+        return http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated()).build();
     }
 
     private static void configureCommonSecurity(HttpSecurity http,
