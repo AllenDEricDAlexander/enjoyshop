@@ -45,7 +45,13 @@ public enum GoodsErrorStatus implements ErrorStatus {
     SEARCH_REQUEST_INVALID(610401, "search request parameters are invalid"),
     SEARCH_SITE_NOT_CONFIGURED(610402, "search site is not configured"),
     SEARCH_UNAVAILABLE(610403, "product search is unavailable"),
-    SEARCH_INTERNAL_ERROR(610499, "product search internal error");
+    SEARCH_INTERNAL_ERROR(610499, "product search internal error"),
+    BRAND_FORBIDDEN(610111, "Brand permission is denied"),
+    BRAND_AUTHORIZATION_UNAVAILABLE(610112, "Brand authorization is unavailable"),
+    SPEC_FORBIDDEN(610113, "Spec permission is denied"),
+    SPEC_AUTHORIZATION_UNAVAILABLE(610114, "Spec authorization is unavailable"),
+    FILE_FORBIDDEN(610115, "File permission is denied"),
+    FILE_AUTHORIZATION_UNAVAILABLE(610116, "File authorization is unavailable");
 
     private final int code;
 
