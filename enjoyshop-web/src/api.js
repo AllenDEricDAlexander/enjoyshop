@@ -60,7 +60,7 @@ export function validateBase(value) {
   return url.href.replace(/\/$/, '');
 }
 
-export function createApi({ base = '', mode = 'bff', token = '', legacyTenantId = '', legacyActorId = '', fetcher = globalThis.fetch } = {}) {
+export function createApi({ base = '', mode = 'bff', token = '', fetcher = globalThis.fetch, locationHash = globalThis.location } = {}) {
   base = validateBase(base);
   if (!['bff', 'bearer'].includes(mode)) throw new Error('未知连接方式');
   let bearer = token;
@@ -68,14 +68,6 @@ export function createApi({ base = '', mode = 'bff', token = '', legacyTenantId 
     const headers = { Accept: 'application/json' };
     const write = method !== 'GET';
     if (mode === 'bearer' && bearer) headers.Authorization = `Bearer ${bearer}`;
-    const legacy = /^\/api\/(?:v1\/(?:brands|specs)(?:\/|$)|users(?:\/|$)|roles(?:\/|$)|courses(?:\/|$)|school-classes(?:\/|$))/.test(path);
-    if (mode === 'bearer' && legacy) {
-      if (legacyTenantId) headers['X-Tenant-Id'] = legacyTenantId;
-      if (legacyActorId && write) {
-        headers['X-Actor-Id'] = legacyActorId;
-        headers['X-Operator-Id'] = legacyActorId;
-      }
-    }
     if (mode === 'bff' && write) {
       const csrf = await request('/bff/csrf');
       if (!csrf?.headerName || !csrf?.token) throw new ApiError('无法获取 CSRF 凭据，请重新登录', 403, csrf);
@@ -91,6 +83,9 @@ export function createApi({ base = '', mode = 'bff', token = '', legacyTenantId 
         ...(body === undefined ? {} : { body: multipart ? body : stringifyJson(body) }),
       });
       text = await response.text();
+      if (response.status === 401 && mode === 'bff' && locationHash && locationHash.hash !== '#/connection') {
+        locationHash.hash = '#/connection';
+      }
     } catch {
       throw new ApiError(write
         ? '网络中断或请求超时，操作结果可能未知。请先查询确认，再决定是否重新提交。'
@@ -118,7 +113,7 @@ export function configureApi({ base, mode, token, registration, legacyTenantId =
   for (const value of [legacyTenantId, legacyActorId]) {
     if (value && (!/^[1-9]\d{0,18}$/.test(value) || BigInt(value) > 9223372036854775807n)) throw new Error('开发租户和操作人 ID 须为有效正整数');
   }
-  const next = createApi({ base, mode, token, legacyTenantId, legacyActorId });
+  const next = createApi({ base, mode, token });
   activeApi.clearToken();
   Object.assign(connection, { base: validateBase(base), mode, registration, legacyTenantId, legacyActorId });
   activeApi = next;

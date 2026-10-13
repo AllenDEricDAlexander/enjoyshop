@@ -23,8 +23,8 @@ test('page envelope and plain user/permission responses remain distinct', async 
   const bodies = [ { success: true, records: [{ id: '12' }], page: { total: 1, pageNo: 1, pageSize: 20, pages: 1 } }, { id: '12', status: 'ACTIVE' }, [{ code: 'read', children: [] }], { success: true, data: 'https://cdn.example/a.png' } ];
   const client = createApi({ mode: 'bearer', fetcher: async () => response(bodies.shift()) });
   assert.deepEqual(await client.request('/api/v1/brands'), { rows: [{ id: '12' }], total: 1, pageNo: 1, pageSize: 20, pages: 1 });
-  assert.equal((await client.request('/api/users/12')).id, '12');
-  assert.ok(Array.isArray(await client.request('/api/users/12/permissions')));
+  assert.equal((await client.request('/api/v1/brands/12')).id, '12');
+  assert.ok(Array.isArray(await client.request('/api/v1/specs')));
   assert.equal(await client.request('/api/v1/files'), 'https://cdn.example/a.png');
 });
 test('BFF writes obtain CSRF and preserve raw integer versions with session cookies', async () => {
@@ -43,7 +43,7 @@ test('BFF writes obtain CSRF and preserve raw integer versions with session cook
 test('invalid CSRF prevents the mutation', async () => {
   let calls = 0;
   const client = createApi({ fetcher: async () => { calls++; return response({ token: 'incomplete' }); } });
-  await assert.rejects(client.request('/api/users', { method: 'POST', body: {} }), /CSRF/);
+  await assert.rejects(client.request('/api/v1/brands', { method: 'POST', body: {} }), /CSRF/);
   assert.equal(calls, 1);
 });
 test('Bearer upload keeps multipart boundary under browser control, then token can be cleared', async () => {
@@ -59,6 +59,38 @@ test('Bearer upload keeps multipart boundary under browser control, then token c
   assert.equal(calls[0].credentials, 'omit');
   client.clearToken(); await client.request('/api/v1/brands');
   assert.equal(calls[1].headers.Authorization, undefined);
+});
+test('BFF business 401 returns to the login hash and leaves other failures in place', async () => {
+  const denied = { code: 'AUTHORIZATION_HEADER_INVALID', message: 'Tianquan-Shoubing authentication failed' };
+  const locationHash = { hash: '#/products' };
+  const client = createApi({ mode: 'bff', locationHash, fetcher: async (url) => {
+    if (String(url).endsWith('/api/v1/brands')) return response(denied, 401);
+    return response({ headerName: 'X-CSRF', token: 'csrf' });
+  } });
+  await assert.rejects(client.request('/api/v1/brands'), error => error instanceof ApiError && error.status === 401 && error.message === denied.message);
+  assert.equal(locationHash.hash, '#/connection');
+
+  let writes = 0;
+  const stay = { _hash: '#/connection', get hash() { return this._hash; }, set hash(value) { writes += 1; this._hash = value; } };
+  const staying = createApi({ mode: 'bff', locationHash: stay, fetcher: async () => response({ message: '身份已失效' }, 401) });
+  await assert.rejects(staying.request('/api/v1/brands'));
+  assert.equal(writes, 0);
+  assert.equal(stay.hash, '#/connection');
+
+  const bearerHash = { hash: '#/products' };
+  const bearer = createApi({ mode: 'bearer', token: 'dev-token', locationHash: bearerHash, fetcher: async () => response(denied, 401) });
+  await assert.rejects(bearer.request('/api/v1/brands'));
+  assert.equal(bearerHash.hash, '#/products');
+
+  const offline = { hash: '#/ads' };
+  const disconnected = createApi({ mode: 'bff', locationHash: offline, fetcher: async () => { throw new Error('offline'); } });
+  await assert.rejects(disconnected.request('/api/v1/brands'), /无法连接/);
+  assert.equal(offline.hash, '#/ads');
+
+  const csrfHash = { hash: '#/brands' };
+  const csrfDenied = createApi({ mode: 'bff', locationHash: csrfHash, fetcher: async () => response({ message: '身份已失效' }, 401) });
+  await assert.rejects(csrfDenied.request('/api/v1/brands', { method: 'POST', body: {} }));
+  assert.equal(csrfHash.hash, '#/connection');
 });
 test('HTTP and business failures include permission, validation and unavailable details', async () => {
   for (const [status, body] of [[401, { code: 'JWT_INVALID', message: '身份已失效' }], [403, { message: '禁止操作' }], [409, { success: false, code: 610200, message: '版本冲突' }], [503, { success: false, code: 610403, message: '搜索未接入' }], [200, { success: false, message: '业务失败', data: { fieldErrors: [{ field: 'name', message: '不能为空' }] } }]]) {

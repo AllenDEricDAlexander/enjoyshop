@@ -7,8 +7,6 @@ export function renderOverview(root) {
     ['brands', '品牌与规格', '维护品牌资料，查询分类规格选项', '02', 'violet'],
     ['ads', '广告运营', '配置广告位、投放时间与展示顺序', '03', 'orange'],
     ['search', '商城搜索', '按价格、分类、品牌和规格筛选 SKU', '04', 'green'],
-    ['users', '用户与权限', '创建用户、分配角色并查看权限树', '05', 'blue'],
-    ['classes', '课程与排课', '创建课程和班级，安排课程时间', '06', 'violet'],
   ];
   root.innerHTML = pageHeader('工作概览', '从商品上架到内容投放，让日常运营井然有序。') +
     `<section class="welcome-panel"><div><span class="eyebrow">YOUR DAILY WORKSPACE</span><h2>每一份好商品，<br>值得被看见。</h2><p>选择一个工作区域，开始今天的管理工作。</p><a class="button primary" href="#/products">进入商品中心 <span aria-hidden="true">→</span></a></div><div class="welcome-art" aria-hidden="true"><div class="art-box">E</div><div class="art-ring"></div><span class="art-label">ENJOY THE LITTLE THINGS</span></div></section>` +
@@ -21,9 +19,7 @@ export function renderConnection(root) {
       field('base', '接口地址', connection.base, { type: 'url', placeholder: '留空使用当前站点', hint: '同源 Edge/BFF 推荐留空；本地可使用 http://localhost:端口' }) +
       field('mode', '认证方式', connection.mode, { choices: [['bff', '平台登录会话（BFF）'], ['bearer', '开发环境 Bearer']] }) +
       field('registration', '登录配置名称', connection.registration, { placeholder: '实际 OIDC registration ID', hint: '由平台配置提供，用于发起单点登录' }) +
-      field('token', '开发环境访问凭据', '', { type: 'password', autocomplete: 'off', hint: '仅 Bearer 模式使用；刷新页面后清除' }) +
-      field('legacyTenantId', '开发租户 ID（旧接口）', connection.legacyTenantId, { inputmode: 'numeric', hint: '仅开发 Bearer 模式的品牌、规格、用户和教学接口使用' }) +
-      field('legacyActorId', '开发操作人 ID（旧接口）', connection.legacyActorId, { inputmode: 'numeric', hint: '旧接口写入上下文；BFF 模式由网关提供，商品和广告不使用此字段' })
+      field('token', '开发环境访问凭据', '', { type: 'password', autocomplete: 'off', hint: '仅 Bearer 模式使用；刷新页面后清除' })
     ), '应用连接')}</section><section class="panel"><h2>当前登录状态</h2><div id="session-result"><p class="muted">读取会话以确认当前登录身份。</p></div><div class="actions">${button('刷新会话', 'session')}${button('平台登录', 'login', '', 'primary')}${button('退出登录', 'logout', '', 'danger')}</div><div class="form-error" role="alert" hidden></div></section></div>`;
   const session = root.querySelector('#session-result');
   const errorTarget = root.querySelector('.panel:last-child');

@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { id, version, money, editableProduct, validateProduct, productActions, validateImage, newSku } from '../src/contracts.js';
 import { searchQuery, searchResults } from '../src/pages/search.js';
-import { scheduleBody } from '../src/pages/teaching.js';
 import { adBody } from '../src/pages/ads.js';
-import { permissionTree } from '../src/pages/users.js';
+import { renderConnection } from '../src/pages/connection.js';
+import { configureApi } from '../src/api.js';
 import { escape, image, safeLink, loadInto, pager } from '../src/ui.js';
 import { createApi } from '../src/api.js';
 
@@ -53,9 +53,7 @@ test('search filters preserve long IDs and repeated specs with bounded paginatio
   assert.throws(() => searchQuery({ ...values, maxPrice: '0.20' }), /最高价格/);
   assert.match(pager({ total: 100000, totalPages: 5000, pageNo: 500, maxAccessiblePageNo: 500 }), /data-page="501" disabled/);
 });
-test('course schedules keep LocalDateTime whereas advertisements use UTC instants', () => {
-  assert.deepEqual(scheduleBody({ startsAt: '2026-10-11T09:00', endsAt: '2026-10-11T10:00' }), { startsAt: '2026-10-11T09:00:00', endsAt: '2026-10-11T10:00:00' });
-  assert.throws(() => scheduleBody({ startsAt: '2026-10-11T10:00', endsAt: '2026-10-11T09:00' }), /结束时间/);
+test('advertisements use UTC instants', () => {
   const body = adBody({ name: '广告', position: 'web_index_lb', imageUrl: 'https://cdn.example/a.png', targetUrl: '/#/search', status: '1', sortOrder: '3', startAt: '2026-10-11T09:00', endAt: '2026-10-11T10:00' }, { version: '9007199254740993' });
   assert.match(body.startAt, /Z$/); assert.equal(body.version, 9007199254740993n);
   assert.equal(body.targetUrl, '/#/search'); assert.equal(body.status, '1');
@@ -72,7 +70,6 @@ test('server content cannot introduce active HTML, links or images', () => {
   assert.equal(escape('<img onerror="alert(1)">'), '&lt;img onerror=&quot;alert(1)&quot;&gt;');
   for (const value of ['javascript:alert(1)', '//evil.example', '/\\evil.example']) assert.equal(safeLink(value), '');
   assert.equal(safeLink('/#/search'), '/#/search'); assert.doesNotMatch(image('javascript:alert(1)'), /src=/);
-  assert.doesNotMatch(permissionTree([{ code: '<script>', name: '<img onerror=bad>', children: [] }]), /<script>|<img /);
   const html = searchResults({ facets: [], rows: [{ name: '<img onerror=bad>', nameHighlight: '<script>bad</script>', image: 'javascript:bad', brandName: '', categoryName: '', specs: {}, price: 100, skuId: '12' }], total: 1, pageNo: 1, totalPages: 1 }, {}, {});
   assert.doesNotMatch(html, /<script>|<img /); assert.match(html, /&lt;img/);
 });
@@ -82,12 +79,78 @@ test('older requests cannot replace the latest page or detached route', async ()
   await loadInto(target, async () => 'latest'); release('stale'); await first; assert.equal(target.innerHTML, 'latest');
   target.isConnected = false; await loadInto(target, async () => 'detached'); assert.notEqual(target.innerHTML, 'detached');
 });
-test('legacy context never propagates to product/ad/search endpoints', async () => {
+test('catalog writes do not send legacy identity headers', async () => {
   const calls = [];
-  const client = createApi({ mode: 'bearer', legacyTenantId: '2', legacyActorId: '3', fetcher: async (url, options) => {
-    calls.push({ url, ...options }); return new Response('{"success":true,"data":true}');
+  const client = createApi({ mode: 'bearer', token: 'dev-token', legacyTenantId: '2', legacyActorId: '3', fetcher: async (url, init) => {
+    calls.push({ url, headers: init.headers });
+    return new Response('{"success":true,"data":{}}');
   } });
-  for (const path of ['/api/v1/brands', '/api/users', '/api/v1/products', '/api/v1/ads', '/api/v1/product-search', '/api/v1/ad-slots/web_index_lb/ads']) await client.request(path, { method: 'POST', body: {} });
-  assert.equal(calls[0].headers['X-Tenant-Id'], '2'); assert.equal(calls[0].headers['X-Actor-Id'], '3'); assert.equal(calls[1].headers['X-Operator-Id'], '3');
-  for (const call of calls.slice(2)) assert.equal(call.headers['X-Tenant-Id'], undefined);
+  for (const path of ['/api/v1/brands', '/api/v1/products', '/api/v1/ads']) await client.request(path, { method: 'POST', body: {} });
+  assert.equal(calls.length, 3);
+  for (const call of calls) {
+    assert.equal(call.headers['X-Tenant-Id'], undefined);
+    assert.equal(call.headers['X-Actor-Id'], undefined);
+    assert.equal(call.headers['X-Operator-Id'], undefined);
+    assert.equal(call.headers.Authorization, 'Bearer dev-token');
+  }
 });
+test('empty registration does not navigate', async () => {
+  const assigns = [];
+  const previous = globalThis.location;
+  globalThis.location = { assign(url) { assigns.push(url); }, hash: '#/connection' };
+  try {
+    configureApi({ base: '', mode: 'bff', token: '', registration: '   ' });
+    const root = connectionRoot();
+    renderConnection(root);
+    await root.click('login');
+    assert.equal(root.error.textContent, '请先配置 BFF 模式和真实登录配置名称');
+    assert.equal(assigns.length, 0);
+    configureApi({ base: '', mode: 'bearer', token: '', registration: 'edge' });
+    const bearer = connectionRoot();
+    renderConnection(bearer);
+    await bearer.click('login');
+    assert.equal(bearer.error.textContent, '请先配置 BFF 模式和真实登录配置名称');
+    assert.equal(assigns.length, 0);
+  } finally {
+    if (previous === undefined) delete globalThis.location;
+    else globalThis.location = previous;
+  }
+});
+
+function connectionRoot() {
+  const listeners = new Map();
+  const error = { hidden: true, textContent: '' };
+  const node = (name) => ({
+    isConnected: true,
+    dataset: {},
+    hidden: false,
+    disabled: false,
+    innerHTML: '',
+    textContent: '',
+    classList: { add() {}, remove() {} },
+    addEventListener(type, handler) { listeners.set(`${name}:${type}`, handler); },
+    querySelector(selector) {
+      if (selector === '.form-error') return error;
+      if (selector === 'fieldset') return { disabled: false };
+      return null;
+    },
+  });
+  const session = node('session');
+  const panel = node('panel');
+  const form = node('form');
+  return {
+    error,
+    set innerHTML(value) { this.markup = value; },
+    querySelector(selector) {
+      if (selector === '#session-result') return session;
+      if (selector === '.panel:last-child') return panel;
+      if (selector === '#connection-form') return form;
+      return null;
+    },
+    async click(action) {
+      const handler = listeners.get('panel:click');
+      const control = { dataset: { action }, disabled: false, closest(selector) { return selector === '[data-action]' ? this : null; } };
+      await handler({ target: control });
+    },
+  };
+}

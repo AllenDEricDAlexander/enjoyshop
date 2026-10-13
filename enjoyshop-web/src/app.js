@@ -4,20 +4,16 @@ import { renderProducts } from './pages/products.js';
 import { renderBrands, renderSpecs, renderFiles } from './pages/catalog.js';
 import { renderAds, renderShowcase } from './pages/ads.js';
 import { renderSearch } from './pages/search.js';
-import { renderUsers, renderPermissions } from './pages/users.js';
-import { renderCourses, renderClasses } from './pages/teaching.js';
 
 const groups = [
   ['工作台', [['overview', '工作概览', '◈'], ['connection', '连接与登录', '◎']]],
   ['商品中心', [['products', '商品管理', '▦'], ['recycle', '商品回收站', '↺'], ['brands', '品牌管理', '◇'], ['specs', '分类规格', '≡'], ['search', '商城搜索', '⌕'], ['files', '图片上传', '↑']]],
   ['内容运营', [['ads', '广告管理', '▣'], ['showcase', '广告展示', '▧']]],
-  ['组织与教学', [['users', '用户与角色', '♙'], ['permissions', '权限管理', '⚿'], ['courses', '课程管理', '▤'], ['classes', '班级与排课', '▥']]],
 ];
 const routes = {
   overview: renderOverview, connection: renderConnection, products: renderProducts,
   recycle: root => renderProducts(root, true), brands: renderBrands, specs: renderSpecs,
   search: renderSearch, files: renderFiles, ads: renderAds, showcase: renderShowcase,
-  users: renderUsers, permissions: renderPermissions, courses: renderCourses, classes: renderClasses,
 };
 const navigation = document.querySelector('#navigation');
 navigation.innerHTML = groups.map(([title, items]) => `<div class="nav-group"><div class="nav-title">${title}</div>${items.map(([key, label, icon]) => `<a href="#/${key}" data-route="${key}"><span aria-hidden="true">${icon}</span>${label}</a>`).join('')}</div>`).join('');
