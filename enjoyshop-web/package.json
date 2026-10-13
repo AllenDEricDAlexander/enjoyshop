@@ -1,0 +1,14 @@
+{
+  "name": "enjoyshop-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "node scripts/check.mjs && node scripts/check-contract.mjs",
+    "test": "node --test test/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}

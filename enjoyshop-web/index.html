@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>EnjoyShop · 管理工作台</title>
+  <link rel="stylesheet" href="./src/style.css">
+  <script src="./config.js" defer></script>
+  <script src="./src/app.js" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳转到内容</a>
+  <aside class="sidebar">
+    <a class="brand" href="#/overview"><span class="brand-mark">E</span><span>EnjoyShop<small>运营管理工作台</small></span></a>
+    <nav aria-label="主导航" id="navigation"></nav>
+    <div class="sidebar-footer"><span class="status-dot"></span>连接真实业务接口<small>Enjoy every little thing.</small></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span id="breadcrumb">工作台</span><a href="#/connection" class="session-link" id="session-label">连接与登录</a></header>
+    <main id="content" tabindex="-1"></main>
+    <footer class="footer">EnjoyShop <span>商品 · 内容 · 组织</span></footer>
+  </div>
+  <div id="notifications" aria-live="polite" aria-atomic="true"></div>
+  <dialog id="editor" aria-labelledby="editor-title"></dialog>
+  <noscript>请启用 JavaScript 以使用管理工作台。</noscript>
+</body>
+</html>

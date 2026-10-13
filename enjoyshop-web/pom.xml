@@ -7,5 +7,5 @@
     <artifactId>enjoyshop-web</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <!-- enjoyshop-web 的聚合工程由后续 Spec 生成；本迭代无工程内容 -->
+    <!-- 独立静态前端使用 npm check/test/build，不加入 Java 服务的 Maven 打包。 -->
 </project>
