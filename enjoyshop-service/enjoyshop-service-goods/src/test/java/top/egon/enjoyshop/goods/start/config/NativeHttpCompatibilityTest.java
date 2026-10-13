@@ -5,20 +5,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import top.egon.enjoyshop.goods.application.user.manage.UserManage;
-import top.egon.enjoyshop.goods.application.user.pojo.result.UserResult;
 import top.egon.enjoyshop.goods.start.StudentManagementApplication;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,37 +21,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class NativeHttpCompatibilityTest extends top.egon.enjoyshop.goods.support.PersistenceTestSupport {
     @Autowired
     private MockMvc mockMvc;
-    @MockitoBean
-    private UserManage userManage;
 
     @Test
-    void business_post_keeps_public_access_request_context_and_json_contract() throws Exception {
-        when(userManage.create(any())).thenReturn(new UserResult(1001L, "Mario", "mario@example.com", "ACTIVE"));
-        mockMvc.perform(post("/api/users").header("X-Operator-Id", "operator-1")
-                        .header("X-Request-Id", "request-1").contentType("application/json")
-                        .content("{\"externalId\":\"external-1\",\"name\":\"Mario\",\"email\":\"mario@example.com\"}"))
-                // DEC-115 已删除自带 ResponseWrapperHandler/ApiResponse：样例域端点不再加信封，
-                // 直接序列化 UserDetailVO（id 为 String 投影）。公开访问、请求上下文、JSON 契约三项保证不变。
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("1001"))
-                .andExpect(jsonPath("$.name").value("Mario"))
-                .andExpect(jsonPath("$.email").value("mario@example.com"))
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
-                // 信封确已消失：不再有 code/data 包装层（外形回归即失败）
-                .andExpect(jsonPath("$.code").doesNotExist())
-                .andExpect(jsonPath("$.data").doesNotExist());
-        // 真实契约所在：请求头 X-Operator-Id/X-Request-Id 经 RequestContext 透传进 CreateUserCommand
-        verify(userManage).create(new top.egon.enjoyshop.goods.application.user.pojo.command.CreateUserCommand(
-                "external-1", "Mario", "mario@example.com", "operator-1", "request-1"));
+    void public_product_search_stays_anonymous() throws Exception {
+        mockMvc.perform(get("/api/v1/product-search"))
+                .andExpect(status().isOk());
     }
 
     @Test
     void platform_starter_retains_openapi_info_and_business_paths() throws Exception {
         mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("Student Management"))
-                .andExpect(jsonPath("$.paths['/api/users'].post").exists())
-                .andExpect(jsonPath("$.paths['/api/courses'].post").exists())
-                .andExpect(jsonPath("$.paths['/api/users/{userId}'].get").exists());
+                .andExpect(jsonPath("$.paths['/api/users']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/courses']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/brands']").exists());
     }
 
     @org.junit.jupiter.api.Nested
@@ -107,8 +83,7 @@ class NativeHttpCompatibilityTest extends top.egon.enjoyshop.goods.support.Persi
         @Test
         void document_governance_leaves_business_and_health_routes_accessible() throws Exception {
             governedMvc.perform(get("/actuator/health")).andExpect(status().isOk());
-            governedMvc.perform(post("/api/users").contentType("application/json").content("{}"))
-                    .andExpect(status().isBadRequest());
+            governedMvc.perform(get("/api/v1/product-search")).andExpect(status().isOk());
         }
     }
 

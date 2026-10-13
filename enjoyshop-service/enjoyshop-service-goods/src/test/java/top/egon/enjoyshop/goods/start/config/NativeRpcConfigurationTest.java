@@ -4,10 +4,10 @@ import io.grpc.Status;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.core.io.ClassPathResource;
-import top.egon.enjoyshop.goods.adapter.pojo.convertor.LightFacadeConverter;
 import top.egon.cola.component.common.core.validation.ValidationUtils;
 import top.egon.cola.component.rpc.provider.server.RpcProviderExceptionMapper;
 
@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NativeRpcConfigurationTest {
     @Test
@@ -27,9 +28,11 @@ class NativeRpcConfigurationTest {
                     .withBean("egonColaValidationUtils", ValidationUtils.class, () -> validation)
                     .run(context -> {
                         assertThat(context).hasNotFailed();
-                        assertThat(context.getBean("nativeRpcValidation")).isSameAs(validation);
+                        assertThat(context.getBean("nativeRpcValidation")).isInstanceOf(ValidationUtils.class).isSameAs(validation);
                         assertThat(context.getBean(ValidationUtils.class)).isSameAs(validation);
-                        assertThat(context.getBean("lightFacadeConverter")).isInstanceOf(LightFacadeConverter.class);
+                        assertThat(context.getBean("nativeRpcValidationExceptionMapper")).isInstanceOf(RpcProviderExceptionMapper.class);
+                        assertThatThrownBy(() -> context.getBean("lightFacadeConverter"))
+                                .isInstanceOf(NoSuchBeanDefinitionException.class);
                         var mapper = context.getBean("nativeRpcValidationExceptionMapper", RpcProviderExceptionMapper.class);
                         assertThat(mapper.map(new ConstraintViolationException(Set.of())).orElseThrow()
                                 .getStatus().getCode()).isEqualTo(Status.Code.INVALID_ARGUMENT);

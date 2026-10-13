@@ -326,7 +326,6 @@
                     <!-- MapStruct generates this contract converter; business Facade implementations remain in Adapter. -->
                     <facadeImplementationPackages>
                         <facadeImplementationPackage>..adapter..</facadeImplementationPackage>
-                        <facadeImplementationPackage>top.egon.enjoyshop.goods.adapter.pojo.convertor.LightFacadeConverterImpl</facadeImplementationPackage>
                     </facadeImplementationPackages>
                     <packageMappings>
                         <top.egon.enjoyshop.goods.domain..>DOMAIN</top.egon.enjoyshop.goods.domain..>

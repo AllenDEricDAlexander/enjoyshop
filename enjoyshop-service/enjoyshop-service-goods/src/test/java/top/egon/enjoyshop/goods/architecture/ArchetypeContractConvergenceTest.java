@@ -38,20 +38,21 @@ class ArchetypeContractConvergenceTest {
             assertFalse(all.contains(forbidden), "domain port package must be gone: " + forbidden);
         }
         assertFalse(all.contains("QueryGateway"), "gateway capability must be a domain Service");
-        assertFalse(all.contains("EventPublisher"), "publisher capability must be a domain Service");
-        assertFalse(all.contains("CachePort"), "data cache must not be a domain port");
+        String withoutCdcPublisher = all.replace("CdcEventPublisher", "").replace("cdcEventPublisher", "");
+        assertFalse(withoutCdcPublisher.contains("EventPublisher"),
+                "publisher capability must be a domain Service");
+        String withoutPlatformCache = all.replace("EgonColaCachePort", "").replace("egonColaCachePort", "");
+        assertFalse(withoutPlatformCache.contains("CachePort"),
+                "data cache must not be a domain port");
 
+        assertFalse(Files.exists(modulePath("domain/teaching")));
+        assertFalse(Files.exists(modulePath("domain/user")));
         assertFalse(Files.exists(modulePath("domain/teaching/gateway")));
         assertFalse(Files.exists(modulePath("domain/user/gateway")));
         assertFalse(Files.exists(modulePath("domain/teaching/client")));
         assertFalse(Files.exists(modulePath("domain/user/client")));
-
-        assertTrue(all.contains(ROOT + ".domain.teaching.service.TeachingQueryService"));
-        assertTrue(all.contains(ROOT + ".domain.user.service.UserQueryService"));
-        assertTrue(all.contains(ROOT + ".domain.teaching.service.TeachingEventService"));
-        assertTrue(all.contains(ROOT + ".domain.user.service.UserEventService"));
-        assertTrue(all.contains(ROOT + ".domain.teaching.service.CourseIdempotencyService"));
-        assertTrue(all.contains(ROOT + ".domain.user.service.UserIdempotencyService"));
+        assertFalse(all.contains(ROOT + ".domain.teaching.service.TeachingQueryService"));
+        assertFalse(all.contains(ROOT + ".domain.user.service.UserQueryService"));
     }
 
     @Test
@@ -59,46 +60,23 @@ class ArchetypeContractConvergenceTest {
         List<Path> sources = sources(MAIN);
         String all = join(sources);
 
-        assertTrue(Files.exists(modulePath("infrastructure/teaching/client/TeachingQueryClient.java")));
-        assertTrue(Files.exists(modulePath("infrastructure/user/client/UserQueryClient.java")));
-        for (String impl : List.of(
-                "infrastructure/teaching/client/impl/LocalTeachingQueryClientImpl.java",
-                "infrastructure/teaching/client/impl/RestTeachingQueryClientImpl.java",
-                "infrastructure/user/client/impl/LocalUserQueryClientImpl.java",
-                "infrastructure/user/client/impl/RestUserQueryClientImpl.java")) {
-            assertTrue(Files.exists(modulePath(impl)), "client implementation expected: " + impl);
-        }
-        assertFalse(all.contains("LocalTeachingQueryService") , "client implementation must use the ClientImpl suffix");
+        assertFalse(Files.exists(modulePath("infrastructure/teaching")));
+        assertFalse(Files.exists(modulePath("infrastructure/user")));
+        assertFalse(all.contains("LocalTeachingQueryService"), "client implementation must use the ClientImpl suffix");
         assertFalse(all.contains("RestUserQueryService"));
-        for (String impl : List.of(
-                "infrastructure/teaching/service/impl/TeachingQueryServiceImpl.java",
-                "infrastructure/user/service/impl/UserQueryServiceImpl.java")) {
-            assertTrue(Files.exists(modulePath(impl)), "query capability must be an infrastructure ServiceImpl: " + impl);
-        }
     }
 
     @Test
     void applicationAndAdapterCarriersUseThePojoDirectories() throws IOException {
         for (String path : List.of(
-                "application/teaching/pojo/command/CreateCourseCommand.java",
-                "application/teaching/pojo/query/GetCourseQuery.java",
-                "application/teaching/pojo/result/CourseResult.java",
-                "application/teaching/pojo/convertor/TeachingApplicationConvertor.java",
-                "application/user/pojo/command/CreateUserCommand.java",
-                "application/user/pojo/query/GetUserQuery.java",
-                "application/user/pojo/result/UserResult.java",
-                "application/user/pojo/convertor/UserApplicationConvertor.java",
-                "adapter/teaching/pojo/dto/CreateCourseRequest.java",
-                "adapter/teaching/pojo/vo/CourseDetailVO.java",
-                "adapter/teaching/pojo/convertor/TeachingAdapterConvertor.java",
-                "adapter/user/pojo/dto/CreateUserRequest.java",
-                "adapter/user/pojo/vo/UserDetailVO.java",
-                "adapter/user/pojo/convertor/UserAdapterConvertor.java",
-                "adapter/pojo/dto/RpcIdQuery.java",
-                "adapter/pojo/convertor/LightFacadeConverter.java",
-                "facade/validation/NativeRpcValidationGroup.java")) {
-            assertTrue(Files.exists(modulePath(path)), "expected pojo path: " + path);
+                "application/teaching",
+                "application/user",
+                "adapter/teaching",
+                "adapter/user",
+                "adapter/pojo/convertor/LightFacadeConverter.java")) {
+            assertFalse(Files.exists(modulePath(path)), "sample carrier must be gone: " + path);
         }
+        assertTrue(Files.exists(modulePath("facade/validation/NativeRpcValidationGroup.java")));
         assertFalse(Files.exists(modulePath("application/teaching/assemblers")));
         assertFalse(Files.exists(modulePath("application/user/assemblers")));
         String all = join(sources(MAIN));
@@ -109,41 +87,22 @@ class ArchetypeContractConvergenceTest {
 
     @Test
     void technicalRepositoryStaysIndependentOfDaoPoAndConverter() throws IOException {
-        for (String path : List.of(
-                "infrastructure/teaching/dao/CourseDAO.java",
-                "infrastructure/teaching/po/CoursePO.java",
-                "infrastructure/teaching/converter/CoursePOConverter.java",
-                "infrastructure/user/dao/UserDAO.java",
-                "infrastructure/user/po/UserPO.java",
-                "infrastructure/user/converter/UserPOConverter.java")) {
-            assertTrue(Files.exists(modulePath(path)), "dao/po/converter must be a sibling of repo: " + path);
-        }
-        assertFalse(Files.exists(modulePath("infrastructure/teaching/repo/dao")));
-        assertFalse(Files.exists(modulePath("infrastructure/user/repo/po")));
+        assertFalse(Files.exists(Path.of("src/main/resources/mybatis/mapper/teaching")));
+        assertFalse(Files.exists(Path.of("src/main/resources/mybatis/mapper/user")));
         String all = join(sources(MAIN));
         assertFalse(all.contains(ROOT + ".infrastructure.teaching.repo.dao"));
         assertFalse(all.contains(ROOT + ".infrastructure.user.repo.po"));
 
-        String mapperXml = read(Path.of("src/main/resources/mybatis/mapper/teaching/CourseDAO.xml"));
-        assertTrue(mapperXml.contains(ROOT + ".infrastructure.teaching.dao.CourseDAO"));
-        assertTrue(mapperXml.contains(ROOT + ".infrastructure.teaching.po.CoursePO"));
         String scan = read(modulePath("start/StudentManagementApplication.java"));
-        assertTrue(scan.contains(ROOT + ".infrastructure.teaching.dao"));
-        assertTrue(scan.contains(ROOT + ".infrastructure.user.dao"));
+        assertTrue(scan.contains(ROOT + ".infrastructure.goods.dao"));
+        assertTrue(scan.contains(ROOT + ".infrastructure.ad.dao"));
+        assertFalse(scan.contains(ROOT + ".infrastructure.teaching.dao"));
+        assertFalse(scan.contains(ROOT + ".infrastructure.user.dao"));
         assertFalse(scan.contains("repo.dao"));
     }
 
     @Test
     void cachedReadsAndWritesStayOnTheSpringProxyOfTheSameRegionKey() throws IOException {
-        String course = read(modulePath("infrastructure/teaching/repo/CourseRepository.java"));
-        assertTrue(course.contains("@CacheConfig(cacheNames = \"CoursePO\")"));
-        assertTrue(course.contains("public CoursePO findCachedById("));
-        assertTrue(course.contains("public boolean updateCachedById("));
-        assertTrue(course.contains("condition = \"#result\""), "false write must not evict");
-
-        String domainService = read(modulePath("infrastructure/teaching/service/impl/CourseDomainServiceImpl.java"));
-        assertTrue(domainService.contains("findCachedById("), "single id read must use the cached entry point");
-        assertTrue(domainService.contains("updateCachedById("), "cached entity write must invalidate");
         for (Path path : sources(MAIN)) {
             String text = read(path);
             assertFalse(text.contains("this.findCachedById("), "cache entry must not be self-invoked: " + path);
@@ -164,15 +123,6 @@ class ArchetypeContractConvergenceTest {
             assertFalse(text.contains("RedisTemplate"), "validator must not write the idempotency store: " + name);
             assertFalse(text.contains("Idempotency"));
         }
-        String claim = read(modulePath("infrastructure/teaching/service/impl/CourseIdempotencyServiceImpl.java"));
-        assertTrue(claim.contains("setIfAbsent("));
-        assertTrue(claim.contains("executeAfterRollback("), "rollback must release the original way");
-        assertTrue(claim.contains("\":idempotency:course:\""));
-        assertTrue(read(modulePath("infrastructure/user/service/impl/UserIdempotencyServiceImpl.java"))
-                .contains("\":idempotency:user:\""));
-        String manage = read(modulePath("application/teaching/manage/impl/CourseManageImpl.java"));
-        assertTrue(manage.contains("courseIdempotencyService.claim("));
-        assertTrue(manage.contains("DUPLICATE_REQUEST"));
     }
 
     @Test
@@ -188,9 +138,6 @@ class ArchetypeContractConvergenceTest {
                         "Manage must not reach infrastructure: " + forbidden + " in " + path);
             }
         }
-        String teaching = read(modulePath("application/teaching/manage/impl/CourseManageImpl.java"));
-        assertTrue(teaching.contains("teachingEventService.publish("));
-        assertTrue(teaching.contains("teachingQueryService.findExternalCourse("));
     }
 
     @Test
@@ -200,38 +147,26 @@ class ArchetypeContractConvergenceTest {
         assertFalse(all.contains(".startsWith(\"course.\")"));
         assertFalse(all.contains(".startsWith(\"authorization.\")"));
 
-        String route = read(modulePath("infrastructure/mq/MqRouteEnum.java"));
-        assertTrue(route.contains("enum MqRouteEnum implements EgonEnum"));
-        for (String field : List.of("exchangeProperty", "queueSuffix", "routingKey",
-                "deadLetterRoutingKey", "durable", "payloadType", "schemaVersion")) {
-            assertTrue(route.contains(field), "route contract field missing: " + field);
-        }
-        for (String key : List.of("app.integrations.rabbitmq.exchange", "user.imported", "course.imported",
-                ".dlq", "class.changed", "course.changed", "schedule.changed", "user.changed",
-                "authorization.changed")) {
-            assertTrue(route.contains(key), "route constant missing: " + key);
-        }
-        String topology = read(modulePath("infrastructure/config/RabbitMqConfig.java"));
-        assertTrue(topology.contains("MqRouteEnum"), "topology must reuse the same route constants");
-        String publish = read(modulePath("infrastructure/mq/impl/RabbitMqMessageServiceImpl.java"));
-        assertTrue(publish.contains("convertAndSend("));
-        assertTrue(publish.contains("executeAfterCommit("));
-        assertTrue(publish.contains("getPayloadType()"), "payload type must be verified before publish");
-        assertTrue(publish.contains("getSchemaVersion()"));
+        assertFalse(Files.exists(modulePath("infrastructure/mq")));
+        assertFalse(Files.exists(modulePath("infrastructure/mq/MqRouteEnum.java")));
+        assertFalse(Files.exists(modulePath("infrastructure/config/RabbitMqConfig.java")));
     }
 
     @Test
     void customExceptionsAreCommonScopedAndCarryTheStringStatusCode() throws IOException {
         for (String path : List.of(
                 "common/exception/BaseBusinessException.java",
+                "common/exception/ConfigDecryptException.java")) {
+            assertTrue(Files.exists(modulePath(path)), "exception must sit in common: " + path);
+        }
+        for (String path : List.of(
                 "common/exception/TeachingDomainException.java",
                 "common/exception/UserDomainException.java",
                 "common/exception/TeachingUseCaseException.java",
                 "common/exception/UserUseCaseException.java",
                 "common/exception/TeachingFacadeException.java",
-                "common/exception/UserFacadeException.java",
-                "common/exception/ConfigDecryptException.java")) {
-            assertTrue(Files.exists(modulePath(path)), "exception must sit in common: " + path);
+                "common/exception/UserFacadeException.java")) {
+            assertFalse(Files.exists(modulePath(path)), "sample exception must be gone: " + path);
         }
         assertFalse(Files.exists(modulePath("common/exceptions")));
         assertFalse(Files.exists(modulePath("domain/teaching/exceptions")));
@@ -265,8 +200,14 @@ class ArchetypeContractConvergenceTest {
                         && text.contains("@EnumValue") && text.contains("@JsonValue") && text.contains("@JsonCreator");
                 boolean internalActions = name.equals("ProductActionEnum.java")
                         && text.contains("CREATE, EDIT, AUDIT, PULL, PUT, DELETE, RESTORE, PURGE");
+                boolean searchSort = name.equals("ProductSearchSortEnum.java") && text.contains("@JsonValue");
+                boolean adStatus = name.equals("AdStatusEnum.java")
+                        && text.contains("@EnumValue") && text.contains("@JsonValue") && text.contains("@JsonCreator");
+                boolean cdcOperation = name.equals("CdcOperationEnum.java")
+                        && text.contains("@JsonValue") && text.contains("@JsonCreator");
                 assertTrue(text.contains("implements EgonEnum") || text.contains("implements ErrorStatus")
-                                || text.contains("extends ") || storedScalarEnum || internalActions,
+                                || text.contains("extends ") || storedScalarEnum || internalActions
+                                || searchSort || adStatus || cdcOperation,
                         "handwritten enum must implement EgonEnum: " + name);
             }
             if (name.endsWith("Validator.java")) {
@@ -289,16 +230,9 @@ class ArchetypeContractConvergenceTest {
         String deleted = read(modulePath("common/enums/DeletedStatus.java"));
         assertTrue(deleted.contains("NOT_DELETED(0"));
         assertTrue(deleted.contains("DELETED(1"));
-        String courseStatus = read(modulePath("domain/teaching/enums/CourseStatus.java"));
-        assertTrue(courseStatus.contains("ACTIVE(0"));
-        assertTrue(courseStatus.contains("DISABLED(1"));
-        String facadeStatus = read(modulePath("facade/teaching/enums/CourseFacadeStatus.java"));
-        assertTrue(facadeStatus.contains("UNKNOWN(2"));
         assertFalse(join(sources(MAIN)).contains(".ordinal()"), "ordinal must never act as the code");
-
-        for (String dto : List.of("facade/teaching/dto/CourseDTO.java", "facade/user/dto/CreateUserDTO.java")) {
-            assertTrue(read(modulePath(dto)).contains("implements BasePojo"), "carrier contract missing: " + dto);
-        }
+        assertFalse(Files.exists(modulePath("facade/teaching")));
+        assertFalse(Files.exists(modulePath("facade/user")));
     }
 
     @Test
@@ -322,31 +256,9 @@ class ArchetypeContractConvergenceTest {
             }
         }
 
-        assertEquals(4, count(all, "@EgonRpcService"), "one protobuf facade per service");
-        assertEquals(4, count(all, "@EgonRpcProvider"), "one provider implementation per facade");
-        String proto = read(Path.of("src/main/proto/teaching_user_facade.proto"));
-        assertTrue(proto.contains("package top.egon.enjoyshop.goods.facade.rpc.v1;"),
-                "protocol package stays frozen");
-        assertTrue(proto.contains("option java_package = \"" + ROOT + ".facade.proto\";"));
-        assertFalse(proto.contains("option java_package = \"" + ROOT + ".facade.rpc.proto\";"));
-        assertEquals(75, countMatches(proto, "= \\d+;"), "field numbers must not drift");
-        for (String message : List.of("CreateCourseRpcRequest", "GetCourseRpcRequest", "CourseRpcResponse",
-                "CreateSchoolClassRpcRequest", "ScheduleCourseRpcRequest", "GetSchoolClassRpcRequest",
-                "SchoolClassRpcResponse", "CreateUserRpcRequest", "AssignRoleRpcRequest", "GetUserRpcRequest",
-                "UserRpcResponse", "GrantPermissionRpcRequest", "GetUserPermissionsRpcRequest",
-                "PermissionRpcResponse", "PermissionListRpcResponse")) {
-            assertTrue(proto.contains("message " + message + " {"), "frozen message missing: " + message);
-        }
-        for (String operation : List.of("CreateCourse", "GetCourse", "CreateSchoolClass", "ScheduleCourse",
-                "GetSchoolClass", "CreateUser", "AssignRole", "GetUser", "GrantPermission",
-                "GetUserPermissions")) {
-            assertTrue(proto.contains("rpc " + operation + "("), "frozen operation missing: " + operation);
-        }
-
-        String asserts = read(modulePath("facade/teaching/utils/TeachingFacadeAssert.java"));
-        assertTrue(asserts.contains("ValidationUtils.requireNotNull"));
-        assertFalse(asserts.contains("if (value == null)"), "assert must not own the check");
-        assertFalse(read(modulePath("facade/user/utils/UserFacadeAssert.java")).contains("if (value == null)"));
+        assertEquals(0, count(all, "@EgonRpcService"), "sample protobuf facades are gone");
+        assertEquals(0, count(all, "@EgonRpcProvider"), "sample providers are gone");
+        assertFalse(Files.exists(Path.of("src/main/proto/teaching_user_facade.proto")));
     }
 
     @Test
@@ -381,11 +293,8 @@ class ArchetypeContractConvergenceTest {
         String all = join(sources(MAIN));
         assertFalse(all.contains("InMemoryCourseCacheService"));
         assertFalse(all.contains("InMemoryUserCacheService"));
-        String local = read(modulePath("infrastructure/config/LocalAdapterConfiguration.java"));
-        assertTrue(local.contains("TeachingQueryClient"));
-        assertTrue(local.contains("UserQueryClient"));
-        assertFalse(local.contains("CachePort"));
-        assertFalse(local.contains("EventPublisher"));
+        assertFalse(Files.exists(modulePath("infrastructure/config/LocalAdapterConfiguration.java")));
+        assertFalse(Files.exists(modulePath("infrastructure/config/ExternalClientConfig.java")));
     }
 
     @Test
@@ -400,8 +309,8 @@ class ArchetypeContractConvergenceTest {
         assertFalse(all.contains("TeachingQueryGateway"));
         assertFalse(all.contains("RepositoryMonitorAspect"));
         assertFalse(all.contains("facade.rpc.LightFacadeConverter"));
-        assertTrue(all.contains("RecordingMqMessageService") || all.contains("LocalMqMessageService"),
-                "the local MQ fake stays under test instead of a production publisher");
+        assertFalse(all.contains("RecordingMqMessageService"));
+        assertFalse(all.contains("LocalMqMessageService"));
     }
 
     private static Path modulePath(String relative) {

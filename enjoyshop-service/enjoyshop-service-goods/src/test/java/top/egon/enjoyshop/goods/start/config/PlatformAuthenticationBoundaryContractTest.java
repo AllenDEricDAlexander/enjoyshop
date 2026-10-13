@@ -80,8 +80,7 @@ class PlatformAuthenticationBoundaryContractTest {
 
         assertThat(controllerSimpleNames("src/main/java")).containsExactlyInAnyOrder(
                 "ProductController", "AdController", "FileController", "ProductSearchController",
-                "BrandController", "SpecController", "UserController", "RoleController",
-                "PermissionController", "CourseController", "SchoolClassController");
+                "BrandController", "SpecController");
     }
 
     @Test
