@@ -24,8 +24,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * {@code TEST-014}: the generated OAS 3 document is the contract the frontend and any SDK are built
  * from, so its stable anchors — the five {@code operationId}s, the required-ness of the path and
- * query parameters, and the fact that only the three write contracts declare 401 — are asserted here
- * instead of being eyeballed.
+ * query parameters, and bearerAuth plus 401, 403, and 503 on every brand operation — are asserted
+ * here instead of being eyeballed.
  *
  * <p>Following {@code DEC-111} (option A) nothing is published to Yuheng and no live instance is
  * consulted: springdoc builds the document inside the application context and it is read over
@@ -51,16 +51,20 @@ class BrandOpenApiContractTest extends top.egon.enjoyshop.goods.support.Persiste
     @Autowired
     private MockMvc mockMvc;
 
-    private JsonNode paths() throws Exception {
+    private JsonNode openApi() throws Exception {
         if (document == null) {
             byte[] body = mockMvc.perform(get("/v3/api-docs"))
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
                     .getContentAsByteArray();
-            document = OBJECT_MAPPER.readTree(new String(body, StandardCharsets.UTF_8)).path("paths");
+            document = OBJECT_MAPPER.readTree(new String(body, StandardCharsets.UTF_8));
         }
         return document;
+    }
+
+    private JsonNode paths() throws Exception {
+        return openApi().path("paths");
     }
 
     @Test
@@ -114,19 +118,19 @@ class BrandOpenApiContractTest extends top.egon.enjoyshop.goods.support.Persiste
         JsonNode paths = paths();
         assertThat(responseCodes(operation(paths, COLLECTION, "post")))
                 .as("API-003 declares 401 but has no 404 to declare")
-                .containsExactlyInAnyOrder("201", "400", "401", "409", "500");
+                .containsExactlyInAnyOrder("201", "400", "401", "403", "409", "500", "503");
         assertThat(responseCodes(operation(paths, ITEM, "put")))
                 .as("API-004")
-                .containsExactlyInAnyOrder("200", "400", "401", "404", "409", "500");
+                .containsExactlyInAnyOrder("200", "400", "401", "403", "404", "409", "500", "503");
         assertThat(responseCodes(operation(paths, ITEM, "delete")))
                 .as("API-005")
-                .containsExactlyInAnyOrder("200", "400", "401", "404", "409", "500");
+                .containsExactlyInAnyOrder("200", "400", "401", "403", "404", "409", "500", "503");
         assertThat(responseCodes(operation(paths, COLLECTION, "get")))
-                .as("API-001 is read-only: no 401, no 404")
-                .containsExactlyInAnyOrder("200", "400", "500");
+                .as("API-001 requires bearer authentication")
+                .containsExactlyInAnyOrder("200", "400", "401", "403", "500", "503");
         assertThat(responseCodes(operation(paths, ITEM, "get")))
-                .as("API-002 is read-only: no 401")
-                .containsExactlyInAnyOrder("200", "400", "404", "500");
+                .as("API-002 requires bearer authentication")
+                .containsExactlyInAnyOrder("200", "400", "401", "403", "404", "500", "503");
 
         assertThat(operation(paths, COLLECTION, "post").at("/responses/201/headers").has("Location"))
                 .as("only the created-contract advertises Location")
@@ -134,6 +138,30 @@ class BrandOpenApiContractTest extends top.egon.enjoyshop.goods.support.Persiste
         assertThat(operation(paths, ITEM, "put").at("/responses").has("201"))
                 .as("update answers 200, never 201")
                 .isFalse();
+    }
+
+    @Test
+    void operations_require_bearer_auth() throws Exception {
+        JsonNode openApi = openApi();
+        for (String operationId : List.of("listBrands", "getBrand", "createBrand", "updateBrand", "deleteBrand")) {
+            JsonNode operation = findByOperationId(openApi.path("paths"), operationId);
+            assertThat(operation.path("security").get(0).has("bearerAuth")).isTrue();
+            assertThat(operation.path("responses").has("401")).isTrue();
+            assertThat(operation.path("responses").has("403")).isTrue();
+            assertThat(operation.path("responses").has("503")).isTrue();
+        }
+        assertThat(openApi.at("/components/securitySchemes/bearerAuth/scheme").asText()).isEqualTo("bearer");
+    }
+
+    private static JsonNode findByOperationId(JsonNode paths, String operationId) {
+        for (JsonNode path : paths) {
+            for (JsonNode operation : path) {
+                if (operationId.equals(operation.path("operationId").asText())) {
+                    return operation;
+                }
+            }
+        }
+        throw new AssertionError("missing operationId " + operationId);
     }
 
     private static JsonNode operation(JsonNode paths, String path, String verb) {

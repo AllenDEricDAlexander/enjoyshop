@@ -56,12 +56,15 @@ class FileOpenApiContractTest extends top.egon.enjoyshop.goods.support.Persisten
         assertThat(bodySchema.path("required").toString()).contains("file");
         assertThat(bodySchema.at("/properties/file/type").asText()).isEqualTo("string");
         assertThat(bodySchema.at("/properties/file/format").asText()).isEqualTo("binary");
-        assertThat(operation.path("security").get(0).has("shoubingBearer")).isTrue();
-        assertThat(document.at("/components/securitySchemes/shoubingBearer/type").asText()).isEqualTo("http");
-        assertThat(document.at("/components/securitySchemes/shoubingBearer/scheme").asText()).isEqualTo("bearer");
+        assertThat(operation.path("security").get(0).has("bearerAuth")).isTrue();
+        assertThat(operation.path("responses").has("401")).isTrue();
+        assertThat(operation.path("responses").has("403")).isTrue();
+        assertThat(operation.path("responses").has("503")).isTrue();
+        assertThat(document.at("/components/securitySchemes/bearerAuth/scheme").asText()).isEqualTo("bearer");
+        assertThat(document.at("/components/securitySchemes/shoubingBearer").isMissingNode()).isTrue();
 
         JsonNode responses = operation.path("responses");
-        assertThat(responseCodes(responses)).containsExactlyInAnyOrder("201", "400", "401", "413", "503");
+        assertThat(responseCodes(responses)).containsExactlyInAnyOrder("201", "400", "401", "403", "413", "503");
         assertThat(responses.at("/201/headers").has("Location")).isTrue();
         assertThat(responses.at("/401/content/application~1json/schema/type").asText()).isEqualTo("object");
         assertThat(responses.at("/401/content/application~1json/schema/required"))

@@ -43,6 +43,11 @@ class SpecOpenApiContractTest extends top.egon.enjoyshop.goods.support.Persisten
 
         assertThat(operation.isMissingNode()).isFalse();
         assertThat(operation.path("operationId").asText()).isEqualTo("listSpecsByCategoryName");
+        assertThat(operation.path("security").get(0).has("bearerAuth")).isTrue();
+        assertThat(operation.path("responses").has("401")).isTrue();
+        assertThat(operation.path("responses").has("403")).isTrue();
+        assertThat(operation.path("responses").has("503")).isTrue();
+        assertThat(document.at("/components/securitySchemes/bearerAuth/scheme").asText()).isEqualTo("bearer");
         JsonNode categoryName = null;
         for (JsonNode parameter : operation.path("parameters")) {
             if ("categoryName".equals(parameter.path("name").asText())) {

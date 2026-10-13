@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -78,11 +79,15 @@ public class BrandController {
      * {@link PageQuery#MAX_PAGE_SIZE} ceiling; supplying either one selects paged mode.
      */
     @GetMapping
-    @Operation(operationId = "listBrands", summary = "查询品牌集合")
+    @Operation(operationId = "listBrands", summary = "查询品牌集合",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "查询成功"),
             @ApiResponse(responseCode = "400", description = "参数不合法（含 seq 区间倒置）"),
-            @ApiResponse(responseCode = "500", description = "服务内部错误")
+            @ApiResponse(responseCode = "401", description = "Tianquan-Shoubing authentication failed"),
+            @ApiResponse(responseCode = "403", description = "permission denied"),
+            @ApiResponse(responseCode = "500", description = "服务内部错误"),
+            @ApiResponse(responseCode = "503", description = "authorization unavailable")
     })
     public PageResultRecord<BrandVO> listBrands(@Valid @ParameterObject BrandListQuery request) {
         if (request.seqMin() != null && request.seqMax() != null && request.seqMax() < request.seqMin()) {
@@ -96,12 +101,16 @@ public class BrandController {
     }
 
     @GetMapping("/{brandId}")
-    @Operation(operationId = "getBrand", summary = "查询品牌详情")
+    @Operation(operationId = "getBrand", summary = "查询品牌详情",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "查询成功"),
             @ApiResponse(responseCode = "400", description = "品牌标识不合法"),
+            @ApiResponse(responseCode = "401", description = "Tianquan-Shoubing authentication failed"),
+            @ApiResponse(responseCode = "403", description = "permission denied"),
             @ApiResponse(responseCode = "404", description = "品牌不存在或已下架"),
-            @ApiResponse(responseCode = "500", description = "服务内部错误")
+            @ApiResponse(responseCode = "500", description = "服务内部错误"),
+            @ApiResponse(responseCode = "503", description = "authorization unavailable")
     })
     public ResultRecord<BrandVO> getBrand(@Positive @PathVariable Long brandId) {
         return ResultRecord.success(converter.toTarget(manage.detail(new BrandDetailQuery().setId(brandId))));
@@ -112,14 +121,17 @@ public class BrandController {
      * location is derived from the identifier the server assigned, never from the request.
      */
     @PostMapping
-    @Operation(operationId = "createBrand", summary = "新增品牌")
+    @Operation(operationId = "createBrand", summary = "新增品牌",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "创建成功", headers =
             @Header(name = "Location", description = "新建品牌资源地址", schema = @Schema(type = "string"))),
             @ApiResponse(responseCode = "400", description = "请求体校验失败"),
-            @ApiResponse(responseCode = "401", description = "缺少操作者上下文"),
+            @ApiResponse(responseCode = "401", description = "Tianquan-Shoubing authentication failed"),
+            @ApiResponse(responseCode = "403", description = "permission denied"),
             @ApiResponse(responseCode = "409", description = "品牌名称已存在"),
-            @ApiResponse(responseCode = "500", description = "服务内部错误")
+            @ApiResponse(responseCode = "500", description = "服务内部错误"),
+            @ApiResponse(responseCode = "503", description = "authorization unavailable")
     })
     public ResponseEntity<ResultRecord<BrandVO>> createBrand(@Valid @RequestBody CreateBrandDTO request) {
         BrandVO created = converter.toTarget(manage.create(converter.toTarget(request)));
@@ -129,14 +141,17 @@ public class BrandController {
     }
 
     @PutMapping("/{brandId}")
-    @Operation(operationId = "updateBrand", summary = "更新品牌")
+    @Operation(operationId = "updateBrand", summary = "更新品牌",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "更新成功，data.version 为新版本"),
             @ApiResponse(responseCode = "400", description = "请求体校验失败"),
-            @ApiResponse(responseCode = "401", description = "缺少操作者上下文"),
+            @ApiResponse(responseCode = "401", description = "Tianquan-Shoubing authentication failed"),
+            @ApiResponse(responseCode = "403", description = "permission denied"),
             @ApiResponse(responseCode = "404", description = "品牌不存在或已下架"),
             @ApiResponse(responseCode = "409", description = "版本冲突或名称已被占用"),
-            @ApiResponse(responseCode = "500", description = "服务内部错误")
+            @ApiResponse(responseCode = "500", description = "服务内部错误"),
+            @ApiResponse(responseCode = "503", description = "authorization unavailable")
     })
     public ResultRecord<BrandVO> updateBrand(@Positive @PathVariable Long brandId,
             @Valid @RequestBody UpdateBrandDTO request) {
@@ -149,14 +164,17 @@ public class BrandController {
      * 200 with {@code data=true} rather than 204.
      */
     @DeleteMapping("/{brandId}")
-    @Operation(operationId = "deleteBrand", summary = "下架品牌")
+    @Operation(operationId = "deleteBrand", summary = "下架品牌",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "下架成功"),
             @ApiResponse(responseCode = "400", description = "version 缺失或不合法"),
-            @ApiResponse(responseCode = "401", description = "缺少操作者上下文"),
+            @ApiResponse(responseCode = "401", description = "Tianquan-Shoubing authentication failed"),
+            @ApiResponse(responseCode = "403", description = "permission denied"),
             @ApiResponse(responseCode = "404", description = "品牌不存在或已下架"),
             @ApiResponse(responseCode = "409", description = "版本冲突"),
-            @ApiResponse(responseCode = "500", description = "服务内部错误")
+            @ApiResponse(responseCode = "500", description = "服务内部错误"),
+            @ApiResponse(responseCode = "503", description = "authorization unavailable")
     })
     public ResultRecord<Boolean> deleteBrand(@Positive @PathVariable Long brandId,
             @NotNull @PositiveOrZero @RequestParam Long version) {

@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
@@ -40,11 +41,15 @@ public class SpecController {
     private final SpecAdapterConverter converter;
 
     @GetMapping("/category/{categoryName}")
-    @Operation(operationId = "listSpecsByCategoryName", summary = "按分类查询规格选项")
+    @Operation(operationId = "listSpecsByCategoryName", summary = "按分类查询规格选项",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "查询成功"),
             @ApiResponse(responseCode = "400", description = "分类名称不合法，业务码 610110"),
-            @ApiResponse(responseCode = "500", description = "服务内部错误")
+            @ApiResponse(responseCode = "401", description = "Tianquan-Shoubing authentication failed"),
+            @ApiResponse(responseCode = "403", description = "permission denied"),
+            @ApiResponse(responseCode = "500", description = "服务内部错误"),
+            @ApiResponse(responseCode = "503", description = "authorization unavailable")
     })
     public ResultRecord<List<SpecOptionVO>> listSpecsByCategoryName(
             @Parameter(description = "商品分类名称", required = true,

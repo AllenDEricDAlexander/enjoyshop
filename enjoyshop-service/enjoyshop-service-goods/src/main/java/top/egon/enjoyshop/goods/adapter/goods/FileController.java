@@ -8,9 +8,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.StringToClassMapItem;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -36,7 +34,6 @@ import top.egon.enjoyshop.goods.common.enums.GoodsErrorStatus;
 @RequestMapping("/api/v1/files")
 @Validated
 @Tag(name = "file", description = "商品图片文件")
-@SecurityScheme(name = "shoubingBearer", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 @RequiredArgsConstructor
 @Slf4j
 public class FileController {
@@ -51,19 +48,20 @@ public class FileController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(operationId = "uploadFile", summary = "上传商品图片",
-            security = @SecurityRequirement(name = "shoubingBearer"))
+            security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "上传成功", headers =
             @Header(name = "Location", description = "稳定的公开图片 URL", schema = @Schema(type = "string"))),
             @ApiResponse(responseCode = "400", description = "缺失文件或图片无效"),
-            @ApiResponse(responseCode = "401", description = "Shoubing Bearer 认证失败", content =
+            @ApiResponse(responseCode = "401", description = "Tianquan-Shoubing authentication failed", content =
                     @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(type = "object",
                     requiredProperties = {"code", "message"}, properties = {
                             @StringToClassMapItem(key = "code", value = String.class),
                             @StringToClassMapItem(key = "message", value = String.class)
                     }))),
+            @ApiResponse(responseCode = "403", description = "permission denied"),
             @ApiResponse(responseCode = "413", description = "文件超过 10 MiB"),
-            @ApiResponse(responseCode = "503", description = "对象存储不可用或写入结果未知")
+            @ApiResponse(responseCode = "503", description = "authorization unavailable")
     })
     public ResponseEntity<ResultRecord<String>> uploadFile(
             @Valid @ModelAttribute
