@@ -1,0 +1,98 @@
+package top.egon.enjoyshop.cart.facade;
+
+import io.grpc.MethodDescriptor.MethodType;
+import jakarta.validation.Validation;
+import org.junit.jupiter.api.Test;
+import top.egon.enjoyshop.cart.facade.teaching.CourseFacade;
+import top.egon.enjoyshop.cart.facade.teaching.SchoolClassFacade;
+import top.egon.enjoyshop.cart.facade.user.PermissionFacade;
+import top.egon.enjoyshop.cart.facade.user.UserFacade;
+import top.egon.cola.component.common.core.validation.ValidationUtils;
+import top.egon.cola.component.rpc.common.exception.EgonRpcException;
+import top.egon.cola.component.rpc.contract.validation.RpcContractValidator;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class NativeRpcContractTest {
+
+    private static final ValidationUtils VALIDATION_UTILS =
+            new ValidationUtils(Validation.buildDefaultValidatorFactory().getValidator());
+
+    private static final Map<Class<?>, Set<String>> OPERATIONS = Map.of(
+            CourseFacade.class, Set.of("CreateCourse", "GetCourse"),
+            SchoolClassFacade.class, Set.of("CreateSchoolClass", "ScheduleCourse", "GetSchoolClass"),
+            UserFacade.class, Set.of("CreateUser", "AssignRole", "GetUser"),
+            PermissionFacade.class, Set.of("GrantPermission", "GetUserPermissions")
+    );
+
+    @Test
+    void validatesEveryNativeOperation() {
+        RpcContractValidator validator = new RpcContractValidator(VALIDATION_UTILS);
+        OPERATIONS.forEach((contract, methods) -> {
+            var descriptor = assertDoesNotThrow(() -> validator.validate(contract),
+                    "Native production RPC contract is invalid: " + contract.getSimpleName());
+            assertEquals(methods, descriptor.methods().stream()
+                    .map(method -> method.methodName()).collect(Collectors.toSet()));
+            assertEquals("1.0.0", descriptor.version());
+            assertTrue(descriptor.methods().stream()
+                    .allMatch(method -> method.grpcMethod().getType() == MethodType.UNARY));
+        });
+    }
+
+    @Test
+    void rejectsContractsWithoutNativeAnnotations() {
+        assertThrows(EgonRpcException.class,
+                () -> new RpcContractValidator(VALIDATION_UTILS).validate(UnannotatedRpcService.class));
+        assertThrows(EgonRpcException.class,
+                () -> new RpcContractValidator(VALIDATION_UTILS).validate(String.class));
+    }
+
+    interface UnannotatedRpcService {
+        String get(String request);
+    }
+
+    @Test
+    void rejectsDescriptorMismatchAndOverloadedContracts() {
+        RpcContractValidator validator = new RpcContractValidator(VALIDATION_UTILS);
+        assertEquals(top.egon.cola.component.rpc.common.enums.EgonRpcErrorCode.RPC_INVALID_CONTRACT,
+                assertThrows(EgonRpcException.class, () -> validator.validate(MismatchedRpcService.class))
+                        .getRpcErrorCode());
+        assertThrows(EgonRpcException.class, () -> validator.validate(OverloadedRpcService.class));
+    }
+
+    @Test
+    void requiresNonNullRequestsAndKeepsMutationRetriesDisabled() throws Exception {
+        for (Class<?> contract : OPERATIONS.keySet()) {
+            var annotation = contract.getAnnotation(top.egon.cola.component.rpc.annotation.EgonRpcService.class);
+            assertEquals(0, annotation.retries());
+            for (var descriptor : new RpcContractValidator(VALIDATION_UTILS).validate(contract).methods()) {
+                assertTrue(java.util.Arrays.stream(descriptor.javaMethod().getParameterAnnotations()[0])
+                        .anyMatch(a -> a.annotationType() == jakarta.validation.constraints.NotNull.class));
+                boolean query = descriptor.methodName().startsWith("Get") || descriptor.methodName().startsWith("Page");
+                assertEquals(query, descriptor.idempotent());
+            }
+        }
+    }
+
+    @top.egon.cola.component.rpc.annotation.EgonRpcService(grpcClass = top.egon.enjoyshop.cart.facade.proto.CourseServiceGrpc.class)
+    interface MismatchedRpcService {
+        @top.egon.cola.component.rpc.annotation.EgonRpcMethod(name = "GetCourse")
+        com.google.protobuf.Empty get(com.google.protobuf.Empty request);
+    }
+
+    @top.egon.cola.component.rpc.annotation.EgonRpcService(grpcClass = top.egon.enjoyshop.cart.facade.proto.CourseServiceGrpc.class)
+    interface OverloadedRpcService {
+        @top.egon.cola.component.rpc.annotation.EgonRpcMethod(name = "GetCourse")
+        com.google.protobuf.Empty get(com.google.protobuf.Empty request);
+
+        @top.egon.cola.component.rpc.annotation.EgonRpcMethod(name = "GetCourse")
+        com.google.protobuf.Empty get(top.egon.enjoyshop.cart.facade.proto.GetCourseRpcRequest request);
+    }
+}

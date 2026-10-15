@@ -1,0 +1,21 @@
+package top.egon.enjoyshop.cart.start;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+@ActiveProfiles("test")
+@SpringBootTest(
+        classes = StudentManagementApplication.class,
+        properties = {
+                "app.integrations.rabbitmq.enabled=false",
+                "app.integrations.redis.enabled=false",
+                "app.integrations.external-http.enabled=false",
+                "egon.cola.component.rpc.enabled=false",
+                "egon.cola.component.tianshu.enabled=false"
+        })
+class StudentManagementApplicationTest extends top.egon.enjoyshop.cart.support.PersistenceTestSupport {
+    @Test
+    void contextLoads() {
+    }
+}

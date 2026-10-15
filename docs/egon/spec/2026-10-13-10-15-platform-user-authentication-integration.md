@@ -20,7 +20,7 @@
 | Amends | None |
 | Supersedes | None |
 | Depends On | [首页网关架构](2026-10-09-16-39-homepage-kubernetes-gateway-architecture.md) §7：浏览器登录与令牌转发继续由御衡 Edge 负责，不新建 enjoyshop 网关；[文件目录与上传](2026-09-28-21-50-distributed-file-catalog-lookups.md) §9：`POST /api/v1/files` 保持守兵 USER Bearer，不在本规格改成鉴身功能权限；[广告同步](2026-10-10-14-48-postgresql-cdc-advertisement-synchronization.md) §7、§9：广告管理链与公开广告位读取保持原认证分界 |
-| Related Specs | [商品生命周期](2026-10-09-10-55-product-management-lifecycle.md) 仍是 Review，只作为商品权限码已落地的背景，不把它的未接受文本升为规范；[品牌骨架](2026-09-23-17-16-enjoyshop-scaffold-brand-crud.md) §6：goods 保持 Light 剖面 |
+| Related Specs | [商品生命周期](2026-10-09-10-55-product-management-lifecycle.md) 仍是 Review，只作为商品权限码已落地的背景，不把它的未接受文本升为规范；[品牌骨架](2026-09-23-17-16-enjoyshop-scaffold-brand-crud.md) §6：goods 保持 Light 剖面；[目录权限与 Edge 登录](2026-10-13-11-06-catalog-permission-and-edge-login.md) 修订本文件中品牌、规格、教学和上传保持原样的范围 |
 | Related Plans | [平台认证边界契约测试计划](../plan/2026-10-13-10-30-platform-authentication-boundary-test.md) |
 
 ## 1. Summary

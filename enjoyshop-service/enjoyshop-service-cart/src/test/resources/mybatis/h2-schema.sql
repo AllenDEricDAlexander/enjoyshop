@@ -1,0 +1,4 @@
+-- cart boundary only
+-- no CREATE TABLE users
+-- no CREATE TABLE courses
+-- cart_item is added by the PostgreSQL script in Step 4, not by this H2 file

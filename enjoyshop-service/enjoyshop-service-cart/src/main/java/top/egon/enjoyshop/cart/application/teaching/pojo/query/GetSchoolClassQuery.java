@@ -1,0 +1,10 @@
+package top.egon.enjoyshop.cart.application.teaching.pojo.query;
+
+public record GetSchoolClassQuery(Long schoolClassId) {
+    public GetSchoolClassQuery {
+        if (schoolClassId == null || schoolClassId <= 0) {
+            throw new IllegalArgumentException("schoolClassId must be positive");
+        }
+    }
+
+}
